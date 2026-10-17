@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { join, dirname, basename } from 'node:path';
 import { tmpdir } from 'node:os';
 import { packageDesktop, archiveCommand, DESKTOP_TARGETS } from './package-desktop.mjs';
@@ -9,6 +9,8 @@ async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'gabe-desktop-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   await mkdir(join(root, 'platform'));
+  await mkdir(join(root, 'assets/icons'), { recursive: true });
+  for (const file of ['app.icns', 'app.svg', 'app-512.png']) await copyFile(new URL(`../../assets/icons/${file}`, import.meta.url), join(root, 'assets/icons', file));
   await writeFile(join(root, 'Cargo.toml'), '[package]\nname="dangerous-gabe"\nversion = "1.2.3"\n');
   await writeFile(join(root, 'README.md'), 'Fixture user guide');
   await writeFile(join(root, 'THIRD_PARTY_NOTICES.txt'), 'Fixture license notices');
@@ -67,6 +69,8 @@ test('Mac packaging stamps a desktop app and requires both signing and verificat
         const plist = readFileSync(join(contents, 'Info.plist'), 'utf8');
         assert.ok(plist.includes('<string>1.2.3</string>'));
         assert.ok(plist.includes('<string>12</string>'));
+        assert.ok(plist.includes('<key>CFBundleIconFile</key><string>app.icns</string>'));
+        assert.equal(readFileSync(join(contents, 'Resources/app.icns')).subarray(0, 4).toString(), 'icns');
         const executable = statSync(join(contents, 'MacOS/dangerous-gabe'));
         assert.ok(executable.size > 0);
         if (process.platform !== 'win32') assert.equal(executable.mode & 0o111, 0o111);
@@ -86,6 +90,8 @@ test('Linux archive command and metadata are staged consistently through an inje
     platform: 'linux', run(command, args) {
       assert.equal(command, 'tar');
       const source = join(args[args.indexOf('-C') + 1], args.at(-1));
+      assert.match(readFileSync(join(source, 'icons/app.svg'), 'utf8'), /#C5EF8A/);
+      assert.equal(readFileSync(join(source, 'icons/app.png')).subarray(1, 4).toString(), 'PNG');
       staged = { metadata: JSON.parse(readFileSync(join(source, 'release-metadata.json'), 'utf8')),
         files: readdirSync(source), executable: statSync(join(source, 'dangerous-gabe')) };
       writeFileSync(args[1], 'injected archive-tool output');
@@ -96,7 +102,7 @@ test('Linux archive command and metadata are staged consistently through an inje
   assert.equal(staged.metadata.signing, 'unsigned');
   assert.ok(staged.executable.size > 0);
   if (process.platform !== 'win32') assert.equal(staged.executable.mode & 0o111, 0o111);
-  assert.deepEqual(staged.files.sort(), ['README.md', 'THIRD_PARTY_NOTICES.txt', 'dangerous-gabe', 'release-metadata.json'].sort());
+  assert.deepEqual(staged.files.sort(), ['README.md', 'THIRD_PARTY_NOTICES.txt', 'dangerous-gabe', 'icons', 'release-metadata.json'].sort());
   assert.ok((await readFile(result.archive)).length > 0);
 });
 
@@ -108,7 +114,7 @@ test('packaging rejects stale metadata, injected versions, unsupported targets a
   await assert.rejects(packageDesktop({ ...options, target, version: '2.0.0' }, { platform: 'darwin' }), /Cargo.toml/);
   await writeFile(options.binary, '');
   await assert.rejects(packageDesktop({ ...options, target }, { platform: 'darwin' }), /nonempty/);
-  assert.deepEqual((await readdir(dirname(options.output))).sort(), ['Cargo.toml', 'README.md', 'THIRD_PARTY_NOTICES.txt', 'binary with spaces', 'platform'].sort());
+  assert.deepEqual((await readdir(dirname(options.output))).sort(), ['Cargo.toml', 'README.md', 'THIRD_PARTY_NOTICES.txt', 'assets', 'binary with spaces', 'platform'].sort());
 });
 
 test('an archive tool failure leaves no final asset that could be published', async t => {
@@ -117,4 +123,12 @@ test('an archive tool failure leaves no final asset that could be published', as
     platform: 'win32', run() { throw new Error('archive failed'); },
   }), /archive failed/);
   assert.deepEqual(await readdir(options.output), []);
+});
+
+test('Mac and Linux packaging reject absent native icon assets', async t => {
+  const options = await fixture(t);
+  await rm(join(options.root, 'assets/icons/app.icns'));
+  await assert.rejects(packageDesktop({ ...options, target: 'aarch64-apple-darwin' }, { platform: 'darwin' }), /ENOENT/);
+  await rm(join(options.root, 'assets/icons/app.svg'));
+  await assert.rejects(packageDesktop({ ...options, target: 'aarch64-unknown-linux-gnu' }, { platform: 'linux' }), /ENOENT/);
 });

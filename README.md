@@ -565,6 +565,20 @@ The Apple build boundary consists of the supplied SDK/CMake script and `build.rs
 
 ## Visual design
 
+### Native application icons
+
+The native icons are generated from the exact original seed emblem in [favicon.svg](docs/html/assets/favicon.svg), with the same Midnight and Seed colors. Regenerate them on macOS with Node and Apple's built-in `sips` and `iconutil` tools:
+
+```sh
+node tools/generate-icons.mjs
+```
+
+The generated [assets/icons](assets/icons) directory is checked in, so normal Rust builds on Windows or Linux do not need icon-generation tools. It contains the original SVG, a 256-pixel 24-bit BMP embedded by SDL, a Windows ICO with PNG images at 16/32/48/64/128/256 pixels, a macOS ICNS covering standard and Retina sizes through 1024 pixels, opaque 1024/512-pixel PNGs, and an iPhone/iPad/marketing AppIcon asset catalog. Opaque formats fill the favicon's transparent outer corners with Midnight; the emblem itself is unchanged. `provenance.json` records the source hash and format contract. These are original project assets under the same 0BSD license.
+
+Windows builds embed the ICO as an executable resource using the Windows SDK resource compiler. Desktop SDL windows use the embedded BMP where their video driver supports window icons; on macOS this also supplies the running application's Dock icon. The dummy driver is skipped, and iOS uses its native asset catalog. macOS release packaging places the ICNS in `Contents/Resources`, declares `CFBundleIconFile`, then signs and verifies the complete app. Linux archives carry `icons/app.svg` and `icons/app.png` as ordinary assets; no icon is claimed to be embedded in the ELF executable or installed into a desktop environment.
+
+The iOS build script uses Xcode's `actool` for the selected device or simulator SDK, targeting iPhone and iPad with minimum iOS 15. It merges the compiled AppIcon metadata into the version-stamped bundle before simulator signing, and includes `Assets.car` and the generated family icon files. Apple packaging rejects absent catalogs or missing iPhone/iPad icon metadata. Device signing and provisioning remain required for installation; icon generation does not provide them.
+
 ### Branding website
 
 The portable [game field guide](docs/index.html) extends the game's own visual language: a midnight greenhouse, copper structural lines, luminous seed accents and a coral gardener. Its signature is a large original Trellis wordmark above an actual game frame, with an expedition rail joining the twelve gardens. The website uses live HTML and SVG; screenshots illustrate the game rather than replacing the interface.

@@ -10,6 +10,8 @@ export const info = {
   CFBundleShortVersionString: '0.1.0', CFBundleVersion: '123.1',
   CFBundleIdentifier: 'dev.dangerousgabe.game', CFBundleExecutable: 'dangerous-gabe',
   CFBundlePackageType: 'APPL', UIDeviceFamily: [1, 2],
+  CFBundleIcons: { CFBundlePrimaryIcon: { CFBundleIconName: 'AppIcon', CFBundleIconFiles: ['AppIcon60x60'] } },
+  'CFBundleIcons~ipad': { CFBundlePrimaryIcon: { CFBundleIconName: 'AppIcon', CFBundleIconFiles: ['AppIcon76x76'] } },
 };
 export const signingEnv = {
   GABE_IOS_CERTIFICATE_BASE64: Buffer.from('not-a-real-pkcs12').toString('base64'),

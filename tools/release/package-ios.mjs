@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { assetNames, signingConfiguration, validateBundle } from './ios-metadata.mjs';
-import { archive, copyApp, inspectTarget, readInfo, runTool, stripDeviceSigning } from './ios-tools.mjs';
+import { archive, copyApp, inspectAppIcons, inspectTarget, readInfo, runTool, stripDeviceSigning } from './ios-tools.mjs';
 import { signDevice } from './ios-signing.mjs';
 import { sourceCommit } from './package-desktop.mjs';
 
@@ -30,6 +30,7 @@ export async function packageIos(options, { env = process.env, run = runTool, te
   if (!app.endsWith('.app')) throw new Error('Input must be an .app bundle');
   const info = readInfo(join(app, 'Info.plist'), run);
   const bundle = validateBundle(info, options.version, env.GABE_IOS_BUNDLE_ID);
+  await inspectAppIcons(app, bundle);
   const commit = sourceCommit(env.GITHUB_SHA ?? '');
   const metadata = { schemaVersion: 1, version: options.version,
     target: options.kind === 'device' ? 'aarch64-apple-ios' : 'aarch64-apple-ios-sim',

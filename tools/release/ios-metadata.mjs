@@ -60,7 +60,16 @@ export function validateBundle(info, version, expectedBundleId) {
   if (!/^[A-Za-z0-9_-]+$/u.test(info.CFBundleExecutable ?? '') || info.CFBundlePackageType !== 'APPL') {
     throw new Error('App executable or package type is invalid');
   }
-  return { identifier: info.CFBundleIdentifier, executable: info.CFBundleExecutable };
+  const iconFiles = [];
+  for (const key of ['CFBundleIcons', 'CFBundleIcons~ipad']) {
+    const primary = info[key]?.CFBundlePrimaryIcon;
+    if (primary?.CFBundleIconName !== 'AppIcon' || !Array.isArray(primary.CFBundleIconFiles) || primary.CFBundleIconFiles.length === 0
+      || !primary.CFBundleIconFiles.every(name => typeof name === 'string' && /^[A-Za-z0-9_-]+(?:\.png)?$/u.test(name))) {
+      throw new Error('App requires compiled AppIcon metadata for both iPhone and iPad');
+    }
+    iconFiles.push(...primary.CFBundleIconFiles);
+  }
+  return { identifier: info.CFBundleIdentifier, executable: info.CFBundleExecutable, iconFiles: [...new Set(iconFiles)] };
 }
 
 function permits(pattern, value) {

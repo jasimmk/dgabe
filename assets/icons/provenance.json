@@ -1,0 +1,29 @@
+{
+  "source": "docs/html/assets/favicon.svg",
+  "sha256": "74eb886f84e4faefe1ef9db9ad88ea98bd88784b60b392332d144ca9ffaee0f1",
+  "license": "0BSD",
+  "rendering": "macOS sips SVG rasterization; original artwork and colors; opaque Midnight corners; iconutil ICNS",
+  "windowIcon": {
+    "file": "app.bmp",
+    "size": 256,
+    "bitsPerPixel": 24
+  },
+  "windowsSizes": [
+    16,
+    32,
+    48,
+    64,
+    128,
+    256
+  ],
+  "macIconsetSizes": [
+    16,
+    32,
+    64,
+    128,
+    256,
+    512,
+    1024
+  ],
+  "iosImages": 18
+}
