@@ -4,7 +4,7 @@
 <dict>
     <key>CFBundleDevelopmentRegion</key><string>en</string>
     <key>CFBundleDisplayName</key><string>Dangerous Gabe</string>
-    <key>CFBundleExecutable</key><string>dangerous-gabe</string>
+    <key>CFBundleExecutable</key><string>DangerousGabe</string>
     <key>CFBundleIdentifier</key><string>dev.dangerousgabe.game</string>
     <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
     <key>CFBundleName</key><string>Dangerous Gabe</string>

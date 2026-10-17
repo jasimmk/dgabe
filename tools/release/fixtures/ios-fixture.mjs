@@ -8,7 +8,7 @@ export const fingerprint = createHash('sha1').update(certificate).digest('hex').
 profile.CertificateFingerprints = [fingerprint];
 export const info = {
   CFBundleShortVersionString: '0.1.0', CFBundleVersion: '123.1',
-  CFBundleIdentifier: 'dev.dangerousgabe.game', CFBundleExecutable: 'dangerous-gabe',
+  CFBundleIdentifier: 'dev.dangerousgabe.game', CFBundleExecutable: 'DangerousGabe',
   CFBundlePackageType: 'APPL', UIDeviceFamily: [1, 2],
   CFBundleIcons: { CFBundlePrimaryIcon: { CFBundleIconName: 'AppIcon', CFBundleIconFiles: ['AppIcon60x60'] } },
   'CFBundleIcons~ipad': { CFBundlePrimaryIcon: { CFBundleIconName: 'AppIcon', CFBundleIconFiles: ['AppIcon76x76'] } },

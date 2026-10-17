@@ -35,7 +35,7 @@ export async function packageIos(options, { env = process.env, run = runTool, te
   const metadata = { schemaVersion: 1, version: options.version,
     target: options.kind === 'device' ? 'aarch64-apple-ios' : 'aarch64-apple-ios-sim',
     signing: options.kind === 'device' ? 'unsigned' : 'ad-hoc', ...(commit ? { sourceCommit: commit } : {}) };
-  inspectTarget(app, bundle, options.kind, run);
+  await inspectTarget(app, bundle, options.kind, run);
   const output = resolve(options.output);
   await mkdir(output, { recursive: true });
   const temporary = await mkdtemp(join(temporaryRoot, 'gabe-ios-package-'));

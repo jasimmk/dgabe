@@ -193,3 +193,12 @@ jobs:
       - uses: Swatinem/rust-cache@v2.9.2
       - run: bash platform/ios-build.sh simulator
       - run: bash platform/ios-build.sh device
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24'
+      - name: Verify and package actual device and simulator bundles
+        shell: bash
+        run: |
+          gabe_version="$(node --input-type=module -e 'import {readFileSync} from "node:fs"; import {packageVersion} from "./tools/release/version.mjs"; console.log(packageVersion(readFileSync("Cargo.toml", "utf8")));')"
+          node tools/release/package-ios.mjs --kind device --app target/aarch64-apple-ios/release/bundle/DangerousGabe.app --version "$gabe_version" --output "$RUNNER_TEMP/gabe-ios-packages"
+          node tools/release/package-ios.mjs --kind simulator --app target/aarch64-apple-ios-sim/release/bundle/DangerousGabe.app --version "$gabe_version" --output "$RUNNER_TEMP/gabe-ios-packages"
