@@ -1,7 +1,48 @@
 name: CI
 on:
   push:
+    branches: ['**']
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'assets/**'
+      - 'platform/**'
+      - 'tools/**'
+      - '.cargo/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'build.rs'
+      - 'rust-toolchain*'
+      - 'rustfmt.toml'
+      - '.rustfmt.toml'
+      - 'clippy.toml'
+      - '.clippy.toml'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'release.config.mjs'
+      - '.github/workflows/build.yml'
+      - '.github/workflows/release.yml'
   pull_request:
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'assets/**'
+      - 'platform/**'
+      - 'tools/**'
+      - '.cargo/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'build.rs'
+      - 'rust-toolchain*'
+      - 'rustfmt.toml'
+      - '.rustfmt.toml'
+      - 'clippy.toml'
+      - '.clippy.toml'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'release.config.mjs'
+      - '.github/workflows/build.yml'
+      - '.github/workflows/release.yml'
   workflow_dispatch:
   workflow_call:
 

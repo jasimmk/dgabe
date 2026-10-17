@@ -467,7 +467,7 @@ Third-party dependencies retain their own licenses and notice requirements; the 
 
 ### CI matrix
 
-The [workflow](.github/workflows/build.yml) runs on pushes, pull requests, manual dispatch and reusable `workflow_call` from the release workflow. Native Rust jobs use stable with rustfmt and Clippy, Cargo caching, read-only repository permissions and a 20-minute timeout. A new run cancels an older CI run for the same workflow/ref.
+The [workflow](.github/workflows/build.yml) runs automatically on branch pushes and pull requests that change Rust source or tests, native assets, platform scripts, tooling, Cargo or npm dependencies, Rust toolchain/lint configuration, or the build/release workflows. README, website (`docs/`) and evidence-only changes do not trigger build CI, and tag pushes do not trigger it. Manual dispatch and reusable `workflow_call` from the release workflow always run the complete checks. Native Rust jobs use stable with rustfmt and Clippy, Cargo caching, read-only repository permissions and a 20-minute timeout. A new run cancels an older CI run for the same workflow/ref.
 
 Both workflows use Node 24 action runtimes: checkout 7.0.1, setup-node 7.1.0, upload-artifact 7.0.2, download-artifact 8.0.2 and rust-cache 2.9.2, verified against their official action metadata on 2026-10-17. The Rust toolchain action is composite. Tooling jobs still install Node 24 explicitly; the action runtime and the Node version running project scripts are separate settings.
 
