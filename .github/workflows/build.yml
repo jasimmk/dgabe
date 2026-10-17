@@ -1,0 +1,80 @@
+name: CI
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  release-tools:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Full release helper fixtures on publishing and Apple hosts
+        if: runner.os != 'Windows'
+        run: npm test
+      - name: Version and semantic-release fixtures on Windows
+        if: runner.os == 'Windows'
+        run: node --test tools/release/orchestration.test.mjs tools/release/version.test.mjs tools/release/package-desktop.test.mjs tools/release/ios-metadata.test.mjs
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Linux SDL3 dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y cmake pkg-config libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxfixes-dev libxss-dev libwayland-dev libxkbcommon-dev libasound2-dev libpulse-dev libudev-dev
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+      - name: Clippy with the default vendored SDL3 configuration
+        run: cargo clippy --locked --all-targets -- -D warnings
+      - name: Build native release
+        run: cargo build --locked --release
+      - name: Input, simulation and twelve-stage campaign tests
+        run: cargo test --locked --lib --test simulation --test campaign_routes
+      - name: Bounded SDL CLI tests
+        if: runner.os == 'Linux'
+        env:
+          SDL_VIDEO_DRIVER: dummy
+          SDL_AUDIO_DRIVER: dummy
+        run: cargo test --locked --test cli
+  ios:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim
+      - uses: Swatinem/rust-cache@v2
+      - run: bash platform/ios-build.sh simulator
+      - run: bash platform/ios-build.sh device

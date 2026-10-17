@@ -1,0 +1,200 @@
+name: Release all platforms
+on:
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: Conventional Commits (auto), or minimum requested bump
+        required: true
+        default: auto
+        type: choice
+        options: [auto, patch, minor, major]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.repository }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  RELEASE_BRANCH: ${{ github.event.repository.default_branch }}
+  RELEASE_TYPE: ${{ inputs.release_type }}
+  RELEASE_SOURCE_SHA: ${{ github.sha }}
+  RELEASE_BUILD_NUMBER: ${{ github.run_number }}
+
+jobs:
+  guard:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Require default branch
+        shell: bash
+        run: test "$GITHUB_REF" = "refs/heads/$RELEASE_BRANCH"
+  ci:
+    needs: guard
+    uses: ./.github/workflows/build.yml
+    permissions:
+      contents: read
+  plan:
+    needs: ci
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    outputs:
+      release: ${{ steps.plan.outputs.release }}
+      version: ${{ steps.plan.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref_name }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Plan with semantic-release, including push permission verification
+        id: plan
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run release:plan
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-plan
+          path: release-plan.json
+          if-no-files-found: error
+          retention-days: 7
+  desktop:
+    needs: plan
+    if: needs.plan.outputs.release == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            target: aarch64-apple-darwin
+            binary: dangerous-gabe
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+            binary: dangerous-gabe
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            binary: dangerous-gabe.exe
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            binary: dangerous-gabe
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            binary: dangerous-gabe
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    env:
+      RELEASE_VERSION: ${{ needs.plan.outputs.version }}
+      RELEASE_TARGET: ${{ matrix.target }}
+      RELEASE_BINARY: ${{ matrix.binary }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+      - name: Linux SDL3 dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y cmake pkg-config libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxfixes-dev libxss-dev libwayland-dev libxkbcommon-dev libasound2-dev libpulse-dev libudev-dev
+      - name: Stamp, build and package the planned version
+        shell: bash
+        run: |
+          node tools/release/version.mjs "$RELEASE_VERSION" "$RELEASE_BUILD_NUMBER"
+          cargo build --locked --release --target "$RELEASE_TARGET"
+          node tools/release/package-desktop.mjs --target "$RELEASE_TARGET" --version "$RELEASE_VERSION" --binary "target/$RELEASE_TARGET/release/$RELEASE_BINARY" --output dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+  apple:
+    needs: plan
+    if: needs.plan.outputs.release == 'true'
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      RELEASE_VERSION: ${{ needs.plan.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim
+      - uses: Swatinem/rust-cache@v2
+      - name: Stamp and compile both Apple mobile targets
+        shell: bash
+        run: |
+          node tools/release/version.mjs "$RELEASE_VERSION" "$RELEASE_BUILD_NUMBER"
+          bash platform/ios-build.sh simulator
+          bash platform/ios-build.sh device
+      - name: Package simulator
+        run: node tools/release/package-ios.mjs --kind simulator --app target/aarch64-apple-ios-sim/release/bundle/DangerousGabe.app --version "$RELEASE_VERSION" --output dist
+      - name: Package unsigned device bundle and optional provisioned IPA
+        env:
+          GABE_IOS_CERTIFICATE_BASE64: ${{ secrets.GABE_IOS_CERTIFICATE_BASE64 }}
+          GABE_IOS_CERTIFICATE_PASSWORD: ${{ secrets.GABE_IOS_CERTIFICATE_PASSWORD }}
+          GABE_IOS_PROVISION_PROFILE_BASE64: ${{ secrets.GABE_IOS_PROVISION_PROFILE_BASE64 }}
+          GABE_IOS_SIGNING_IDENTITY: ${{ secrets.GABE_IOS_SIGNING_IDENTITY }}
+          GABE_IOS_TEAM_ID: ${{ secrets.GABE_IOS_TEAM_ID }}
+        run: node tools/release/package-ios.mjs --kind device --app target/aarch64-apple-ios/release/bundle/DangerousGabe.app --version "$RELEASE_VERSION" --output dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-apple-mobile
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+  publish:
+    needs: [plan, desktop, apple]
+    if: needs.plan.outputs.release == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref_name }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-plan
+          path: .
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: package-*
+          path: dist
+          merge-multiple: true
+      - name: Recheck plan, validate every asset, stamp metadata, tag and publish once
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GIT_AUTHOR_NAME: github-actions[bot]
+          GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+          GIT_COMMITTER_NAME: github-actions[bot]
+          GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+        run: npm run release:publish

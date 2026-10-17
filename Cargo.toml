@@ -1,0 +1,49 @@
+[package]
+name = "dangerous-gabe"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "An independently built Rust and SDL3 platform adventure"
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "dangerous-gabe"
+path = "src/main.rs"
+test = false
+bench = false
+
+[[test]]
+name = "campaign_routes"
+path = "tools/runtime_routes.rs"
+harness = false
+
+[dependencies]
+sdl3 = { version = "=0.20.0", features = ["main"] }
+sdl3-main = "=0.7.0"
+
+[features]
+default = ["vendored"]
+vendored = ["sdl3/build-from-source-static"]
+system-sdl = ["sdl3/use-pkg-config"]
+
+[lints.rust]
+unsafe_code = "forbid"
+unused_must_use = "deny"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "debuginfo"
+
+[package.metadata.bundle]
+name = "Dangerous Gabe"
+identifier = "dev.dangerousgabe.game"
+short_description = "An independent platform adventure"
+ios_target_family = ["1", "2"]
