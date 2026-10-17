@@ -3,6 +3,16 @@ use std::path::PathBuf;
 use std::process::Command;
 
 fn main() -> Result<(), Box<dyn Error>> {
+    println!("cargo:rerun-if-changed=assets/icons/app.ico");
+    println!("cargo:rerun-if-changed=Cargo.toml");
+    if std::env::var("CARGO_CFG_TARGET_OS")? == "windows" {
+        winresource::WindowsResource::new()
+            .set_icon("assets/icons/app.ico")
+            .set("ProductName", "Dangerous Gabe")
+            .set("FileDescription", "Dangerous Gabe: The Storm Garden")
+            .set("OriginalFilename", "dangerous-gabe.exe")
+            .compile_for("dangerous-gabe")?;
+    }
     let (sdk, library) = match std::env::var("CARGO_CFG_TARGET_OS")?.as_str() {
         "macos" => ("macosx", "libclang_rt.osx.a"),
         "ios" => {

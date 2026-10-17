@@ -50,6 +50,9 @@ export async function packageDesktop(options, runtime = {}) {
   const readme = await readFile(join(root, 'README.md'));
   const notices = await readFile(join(root, 'THIRD_PARTY_NOTICES.txt'));
   if (!notices.length) throw new Error('Dependency notices are empty');
+  const iconRoot = join(root, 'assets', 'icons');
+  const iconFiles = type.platform === 'darwin' ? ['app.icns'] : type.platform === 'linux' ? ['app.svg', 'app-512.png'] : [];
+  for (const file of iconFiles) if ((await stat(join(iconRoot, file))).size === 0) throw new Error(`App icon is empty: ${file}`);
   const commit = sourceCommit(options.sourceCommit);
   const name = `dangerous-gabe-${version}-${target}`;
   const output = resolve(options.output);
@@ -70,13 +73,15 @@ export async function packageDesktop(options, runtime = {}) {
       const contents = join(source, 'Dangerous Gabe.app', 'Contents');
       const executable = join(contents, 'MacOS', 'dangerous-gabe');
       await mkdir(dirname(executable), { recursive: true });
+      await mkdir(join(contents, 'Resources'));
+      await copyFile(join(iconRoot, 'app.icns'), join(contents, 'Resources', 'app.icns'));
       await copyFile(binary, executable);
       await chmod(executable, 0o755);
       const sourcePlist = await readFile(join(root, 'platform', 'Info.plist'), 'utf8');
       const build = sourcePlist.match(/<key>CFBundleVersion<\/key>\s*<string>([1-9]\d*)<\/string>/)?.[1];
       const short = sourcePlist.match(/<key>CFBundleShortVersionString<\/key>\s*<string>([^<]+)<\/string>/)?.[1];
       if (!build || short !== version) throw new Error('Apple source version/build metadata is not synchronized');
-      await writeFile(join(contents, 'Info.plist'), `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict><key>CFBundleExecutable</key><string>dangerous-gabe</string><key>CFBundleIdentifier</key><string>dev.dangerousgabe.game</string><key>CFBundleName</key><string>Dangerous Gabe</string><key>CFBundlePackageType</key><string>APPL</string><key>CFBundleShortVersionString</key><string>${version}</string><key>CFBundleVersion</key><string>${build}</string><key>NSHighResolutionCapable</key><true/></dict></plist>\n`);
+      await writeFile(join(contents, 'Info.plist'), `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict><key>CFBundleExecutable</key><string>dangerous-gabe</string><key>CFBundleIdentifier</key><string>dev.dangerousgabe.game</string><key>CFBundleName</key><string>Dangerous Gabe</string><key>CFBundlePackageType</key><string>APPL</string><key>CFBundleShortVersionString</key><string>${version}</string><key>CFBundleVersion</key><string>${build}</string><key>CFBundleIconFile</key><string>app.icns</string><key>NSHighResolutionCapable</key><true/></dict></plist>\n`);
       const app = dirname(contents);
       run('/usr/bin/plutil', ['-lint', join(contents, 'Info.plist')]);
       run('/usr/bin/codesign', ['--force', '--deep', '--sign', '-', app]);
@@ -85,6 +90,11 @@ export async function packageDesktop(options, runtime = {}) {
       const executable = join(source, type.platform === 'win32' ? 'dangerous-gabe.exe' : 'dangerous-gabe');
       await copyFile(binary, executable);
       if (type.platform !== 'win32') await chmod(executable, 0o755);
+      if (type.platform === 'linux') {
+        await mkdir(join(source, 'icons'));
+        await copyFile(join(iconRoot, 'app.svg'), join(source, 'icons', 'app.svg'));
+        await copyFile(join(iconRoot, 'app-512.png'), join(source, 'icons', 'app.png'));
+      }
     }
     const [command, arguments_] = archiveCommand({ target, source, destination: temporary });
     run(command, arguments_);

@@ -11,8 +11,12 @@ async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'gabe-apple-unit-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const app = join(root, 'DangerousGabe.app');
+  await mkdir(app);
+  await writeFile(join(app, 'Assets.car'), 'compiled catalog fixture');
+  await writeFile(join(app, 'AppIcon60x60@2x.png'), 'phone icon fixture');
+  await writeFile(join(app, 'AppIcon76x76@2x~ipad.png'), 'tablet icon fixture');
   const temporaryRoot = join(root, 'private');
-  await mkdir(app); await mkdir(temporaryRoot);
+  await mkdir(temporaryRoot);
   await writeFile(join(app, 'Info.plist'), JSON.stringify(info));
   await writeFile(join(app, 'dangerous-gabe'), 'fixture, not executable code');
   const noticeFile = join(root, 'THIRD_PARTY_NOTICES.txt');
@@ -26,6 +30,34 @@ test('Apple CLI rejects missing, duplicate and unknown options', () => {
   for (const invalid of [[], args.slice(0, -1), [...args, '--kind', 'device'], [...args, '--secret', 'x']]) {
     assert.throws(() => parseArguments(invalid));
   }
+});
+
+test('compiled catalog and both family icon files must exist before any archive or signing', async t => {
+  const f = await fixture(t); const tools = simulatedTools();
+  await rm(join(f.app, 'AppIcon76x76@2x~ipad.png'));
+  await assert.rejects(packageIos(f.options, { ...f, run: tools.run, env: {} }), /icon is missing/);
+  assert(!tools.calls.some(call => ['ditto', 'codesign', 'security'].includes(call.command)));
+  await writeFile(join(f.app, 'AppIcon76x76@2x~ipad.png'), 'tablet icon fixture');
+  await writeFile(join(f.app, 'Assets.car'), '');
+  await assert.rejects(packageIos(f.options, { ...f, run: tools.run, env: {} }), /catalog is empty/);
+});
+
+test('both universal icons and the compiled catalog survive archive staging', async t => {
+  const f = await fixture(t); const tools = simulatedTools();
+  const { readFileSync } = await import('node:fs');
+  let observed = false;
+  const run = (file, args, options) => {
+    if (basename(file) === 'ditto') {
+      const app = join(args.at(-2), 'DangerousGabe.app');
+      assert.equal(readFileSync(join(app, 'Assets.car'), 'utf8'), 'compiled catalog fixture');
+      assert.equal(readFileSync(join(app, 'AppIcon60x60@2x.png'), 'utf8'), 'phone icon fixture');
+      assert.equal(readFileSync(join(app, 'AppIcon76x76@2x~ipad.png'), 'utf8'), 'tablet icon fixture');
+      observed = true;
+    }
+    return tools.run(file, args, options);
+  };
+  await packageIos(f.options, { ...f, run, env: {} });
+  assert(observed);
 });
 
 for (const kind of ['device', 'simulator']) {

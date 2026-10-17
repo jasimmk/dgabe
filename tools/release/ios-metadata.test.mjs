@@ -18,6 +18,9 @@ test('bundle metadata must match version, build, universal family and configured
     { CFBundleShortVersionString: '0.2.0' }, { CFBundleVersion: '' },
     { UIDeviceFamily: [1] }, { UIDeviceFamily: [2] }, { UIDeviceFamily: [1, 1, 2] },
     { CFBundleExecutable: '../secret' }, { CFBundlePackageType: 'FMWK' },
+    { CFBundleIcons: {} }, { 'CFBundleIcons~ipad': {} },
+    { CFBundleIcons: { CFBundlePrimaryIcon: { CFBundleIconName: 'Wrong', CFBundleIconFiles: ['AppIcon60x60'] } } },
+    { CFBundleIcons: { CFBundlePrimaryIcon: { CFBundleIconName: 'AppIcon', CFBundleIconFiles: ['../secret'] } } },
   ]) assert.throws(() => validateBundle({ ...info, ...changes }, '0.1.0'));
   assert.throws(() => validateBundle(info, '0.1.0', 'other.bundle'));
 });

@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { cp, lstat, readdir, rename, rm } from 'node:fs/promises';
+import { cp, lstat, readdir, rename, rm, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 
 export function runTool(file, args, { allowFailure = false } = {}) {
@@ -55,6 +55,22 @@ export function inspectTarget(app, bundle, kind, run) {
   const build = run('/usr/bin/xcrun', ['vtool', '-show-build', binary]).stdout;
   const platform = kind === 'device' ? 'IOS' : 'IOSSIMULATOR';
   if (!new RegExp(`^\\s*platform ${platform}\\s*$`, 'mu').test(build)) throw new Error('App executable platform does not match requested archive kind');
+}
+
+export async function inspectAppIcons(app, bundle) {
+  const catalog = await stat(join(app, 'Assets.car'));
+  if (!catalog.isFile() || catalog.size === 0) throw new Error('Compiled app icon catalog is empty');
+  const files = await readdir(app);
+  for (const icon of bundle.iconFiles) {
+    const stem = icon.replace(/\.png$/u, '');
+    const pattern = new RegExp(`^${stem}(?:@[123]x)?(?:~ipad)?\\.png$`, 'u');
+    const matching = files.filter(name => pattern.test(name));
+    if (!matching.length) throw new Error(`Compiled app icon is missing: ${icon}`);
+    for (const file of matching) {
+      const image = await stat(join(app, file));
+      if (!image.isFile() || image.size === 0) throw new Error(`Compiled app icon is empty: ${file}`);
+    }
+  }
 }
 
 export async function stripDeviceSigning(app, run) {

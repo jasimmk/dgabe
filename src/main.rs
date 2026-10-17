@@ -10,6 +10,8 @@ use sdl3::video::Window;
 use sdl3_main::{AppResult, MainThreadData, MainThreadToken};
 use simulation::{Input, Mode, World};
 
+#[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+mod app_icon;
 mod options;
 use options::Options;
 
@@ -177,6 +179,10 @@ fn create_app() -> Result<App, String> {
         .build()
         .map_err(|error| error.to_string())?;
     let mut canvas = window.into_canvas();
+    #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+    if let Err(error) = app_icon::install(canvas.window_mut(), video.current_video_driver()) {
+        eprintln!("Window icon unavailable: {error}");
+    }
     canvas
         .set_logical_size(
             960,
