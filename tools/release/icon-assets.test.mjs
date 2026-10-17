@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 const asset = name => readFile(new URL(`../../assets/icons/${name}`, import.meta.url));
 function png(data, size) {
@@ -16,6 +19,28 @@ test('native assets retain the exact favicon source and source hash', async () =
   const provenance = JSON.parse(await asset('provenance.json'));
   assert.equal(provenance.sha256, createHash('sha256').update(source).digest('hex'));
   assert.equal(provenance.license, '0BSD');
+});
+
+test('Git Windows-style checkout preserves the exact provenance bytes', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'gabe-icon-eol-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const source = await readFile(new URL('../../docs/html/assets/favicon.svg', import.meta.url));
+  const attributes = await readFile(new URL('../../.gitattributes', import.meta.url), 'utf8').catch(error => {
+    if (error.code === 'ENOENT') return '';
+    throw error;
+  });
+  await mkdir(join(root, 'docs/html/assets'), { recursive: true });
+  await mkdir(join(root, 'assets/icons'), { recursive: true });
+  await writeFile(join(root, '.gitattributes'), attributes);
+  await writeFile(join(root, 'docs/html/assets/favicon.svg'), source);
+  await writeFile(join(root, 'assets/icons/app.svg'), source);
+  const git = args => execFileSync('git', args, { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] });
+  git(['init', '--quiet']);
+  git(['-c', 'core.autocrlf=false', 'add', '.']);
+  git(['-c', 'core.autocrlf=true', 'checkout-index', '--all', '--prefix=export/']);
+  for (const file of ['docs/html/assets/favicon.svg', 'assets/icons/app.svg']) {
+    assert.deepEqual(await readFile(join(root, 'export', file)), source);
+  }
 });
 
 test('SDL BMP is core-readable24bit256px with original Midnight and Seed pixels', async () => {
