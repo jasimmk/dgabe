@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+const docs = path.dirname(here);
 const root = path.resolve(here, '../..');
 const config = JSON.parse(await readFile(path.join(here, 'site.config.json'), 'utf8'));
 function publicUrl(value, name) {
@@ -45,7 +46,7 @@ const data = {
   description, genre: ['Platform game', 'Action'], playMode: 'SinglePlayer',
   gamePlatform: ['macOS', 'Windows', 'Linux', 'iPhone', 'iPad'],
   operatingSystem: ['macOS', 'Windows', 'Linux', 'iOS'], inLanguage: 'en',
-  ...(site ? { url: `${site}/`, image: `${site}/assets/share.png` } : {}),
+  ...(site ? { url: `${site}/`, image: `${site}/html/assets/share.png` } : {}),
   ...(repository ? { sameAs: repository } : {}),
 };
 const metadata = `<meta name="description" content="${description}">
@@ -54,7 +55,7 @@ const metadata = `<meta name="description" content="${description}">
 <meta property="og:description" content="${description}">
 <meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Dangerous Gabe — The storm has a gardener">
 <meta name="twitter:description" content="${description}">
-${site ? `<link rel="canonical" href="${escape(site)}/"><meta property="og:url" content="${escape(site)}/"><meta property="og:image" content="${escape(site)}/assets/share.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:alt" content="Dangerous Gabe: the storm has a gardener, with an actual Dawnseed Crown game frame"><meta name="twitter:image" content="${escape(site)}/assets/share.png">` : ''}
+${site ? `<link rel="canonical" href="${escape(site)}/"><meta property="og:url" content="${escape(site)}/"><meta property="og:image" content="${escape(site)}/html/assets/share.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:alt" content="Dangerous Gabe: the storm has a gardener, with an actual Dawnseed Crown game frame"><meta name="twitter:image" content="${escape(site)}/html/assets/share.png">` : ''}
 <script type="application/ld+json">${JSON.stringify(data).replace(/</g, '\\u003c')}</script>`;
 let html = await readFile(path.join(here, 'page.template.html'), 'utf8');
 html = html.replace('<details class="build-details">', `<details id="build-notes" class="build-details"${repository ? '' : ' open'}>`);
@@ -65,9 +66,13 @@ for (const name of ['new-stage-12', 'gameplay', 'title', 'touch-pause']) {
 }
 await mkdir(path.join(here, 'assets'), { recursive: true });
 for (const image of ['title.png', 'gameplay.png', 'touch-pause.png', 'new-stage-12.png']) await copyFile(path.join(root, 'docs/images', image), path.join(here, 'assets', image));
-await writeFile(path.join(here, 'index.html'), html);
-await writeFile(path.join(here, 'robots.txt'), `User-agent: *\nAllow: /\n${site ? `Sitemap: ${site}/sitemap.xml\n` : ''}`);
-if (site) await writeFile(path.join(here, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${escape(site)}/</loc></url></urlset>\n`);
-else await rm(path.join(here, 'sitemap.xml'), { force: true });
+html = html.replace('href="style.css"', 'href="html/style.css"').replace('src="app.js"', 'src="html/app.js"')
+  .replace(/(href|src)="assets\//g, '$1="html/assets/').replaceAll('srcset="assets/', 'srcset="html/assets/').replaceAll(', assets/', ', html/assets/');
+await writeFile(path.join(docs, 'index.html'), html);
+await writeFile(path.join(docs, '.nojekyll'), '');
+await writeFile(path.join(docs, 'robots.txt'), `User-agent: *\nAllow: /\n${site ? `Sitemap: ${site}/sitemap.xml\n` : ''}`);
+if (site) await writeFile(path.join(docs, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${escape(site)}/</loc></url></urlset>\n`);
+else await rm(path.join(docs, 'sitemap.xml'), { force: true });
+for (const obsolete of ['index.html', 'robots.txt', 'sitemap.xml']) await rm(path.join(here, obsolete), { force: true });
 await writeFile(path.join(here, 'assets/wordmark.svg'), `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 53 19"><g fill="#F2EDD6">${lettering('DANGEROUS', '#F2EDD6').replace('<svg ', '<svg y="0" width="53" height="7" ')}</g><g>${lettering('GABE', '#C5EF8A').replace('<svg ', '<svg y="10" width="53" height="9" ')}</g></svg>`);
 console.log(`Built static field guide: 12 stages; repository ${repository ? 'configured' : 'unset'}; site ${site ? 'configured' : 'unset'}`);
