@@ -46,11 +46,11 @@ jobs:
       release: ${{ steps.plan.outputs.release }}
       version: ${{ steps.plan.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
           ref: ${{ github.ref_name }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version: '24'
           cache: npm
@@ -60,7 +60,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run release:plan
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: release-plan
           path: release-plan.json
@@ -91,11 +91,12 @@ jobs:
       RELEASE_VERSION: ${{ needs.plan.outputs.version }}
       RELEASE_TARGET: ${{ matrix.target }}
       RELEASE_BINARY: ${{ matrix.binary }}
+      MACOSX_DEPLOYMENT_TARGET: '11.0'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
         with:
           ref: ${{ github.sha }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version: '24'
           cache: npm
@@ -103,7 +104,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2.9.2
       - name: Linux SDL3 dependencies
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y cmake pkg-config libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxfixes-dev libxss-dev libxtst-dev libwayland-dev libxkbcommon-dev libasound2-dev libpulse-dev libudev-dev
@@ -113,7 +114,7 @@ jobs:
           node tools/release/version.mjs "$RELEASE_VERSION" "$RELEASE_BUILD_NUMBER"
           cargo build --locked --release --target "$RELEASE_TARGET"
           node tools/release/package-desktop.mjs --target "$RELEASE_TARGET" --version "$RELEASE_VERSION" --binary "target/$RELEASE_TARGET/release/$RELEASE_BINARY" --output dist
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: package-${{ matrix.target }}
           path: dist/*
@@ -127,10 +128,10 @@ jobs:
     env:
       RELEASE_VERSION: ${{ needs.plan.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
         with:
           ref: ${{ github.sha }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version: '24'
           cache: npm
@@ -138,7 +139,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-ios,aarch64-apple-ios-sim
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2.9.2
       - name: Stamp and compile both Apple mobile targets
         shell: bash
         run: |
@@ -155,7 +156,7 @@ jobs:
           GABE_IOS_SIGNING_IDENTITY: ${{ secrets.GABE_IOS_SIGNING_IDENTITY }}
           GABE_IOS_TEAM_ID: ${{ secrets.GABE_IOS_TEAM_ID }}
         run: node tools/release/package-ios.mjs --kind device --app target/aarch64-apple-ios/release/bundle/DangerousGabe.app --version "$RELEASE_VERSION" --output dist
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: package-apple-mobile
           path: dist/*
@@ -169,20 +170,20 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
           ref: ${{ github.ref_name }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version: '24'
           cache: npm
       - run: npm ci --ignore-scripts
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8.0.2
         with:
           name: release-plan
           path: .
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8.0.2
         with:
           pattern: package-*
           path: dist
