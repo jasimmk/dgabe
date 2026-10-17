@@ -400,7 +400,7 @@ Run the checks relevant to your change from the project root:
 cargo fmt --all -- --check
 cargo check --locked
 cargo clippy --locked --all-targets -- -D warnings
-cargo test --locked --lib --test simulation --test campaign_routes
+cargo test --locked --lib --test app_icon --test simulation --test campaign_routes
 cargo build --locked
 ```
 
@@ -437,7 +437,7 @@ The tests use temporary local Git repositories and fixture packages. They do not
 The full suite uses Unix `zip`, `unzip` and `tar` for aggregation/publication fixtures. Windows CI runs the portable planning, stamping, desktop-packager and Apple-metadata tests instead:
 
 ```powershell
-node --test tools/release/orchestration.test.mjs tools/release/version.test.mjs tools/release/package-desktop.test.mjs tools/release/ios-metadata.test.mjs
+node --test tools/release/orchestration.test.mjs tools/release/version.test.mjs tools/release/package-desktop.test.mjs tools/release/ios-metadata.test.mjs tools/release/icon-assets.test.mjs tools/release/verify-pe-icon.test.mjs
 ```
 
 Keep the SDL callback executable's `test=false`. Use the explicit test selections above; `cargo test --all-targets` can select the callback binary despite that default and is not the CI test command. Clippy's `--all-targets` checks compilation without executing those targets. Default CI uses vendored SDL3; `--all-features` also enables system-SDL discovery and requires appropriate pkg-config/system-library setup.
@@ -581,6 +581,10 @@ node tools/generate-icons.mjs
 The generated [assets/icons](assets/icons) directory is checked in, so normal Rust builds on Windows or Linux do not need icon-generation tools. It contains the original SVG, a 256-pixel 24-bit BMP embedded by SDL, a Windows ICO with PNG images at 16/32/48/64/128/256 pixels, a macOS ICNS covering standard and Retina sizes through 1024 pixels, opaque 1024/512-pixel PNGs, and an iPhone/iPad/marketing AppIcon asset catalog. Opaque formats fill the favicon's transparent outer corners with Midnight; the emblem itself is unchanged. `provenance.json` records the source hash and format contract. These are original project assets under the same 0BSD license.
 
 Windows builds embed the ICO as an executable resource using the Windows SDK resource compiler. Desktop SDL windows use the embedded BMP where their video driver supports window icons; on macOS this also supplies the running application's Dock icon. The dummy driver is skipped, and iOS uses its native asset catalog. macOS release packaging places the ICNS in `Contents/Resources`, declares `CFBundleIconFile`, then signs and verifies the complete app. Linux archives carry `icons/app.svg` and `icons/app.png` as ordinary assets; no icon is claimed to be embedded in the ELF executable or installed into a desktop environment.
+
+CI checks the actual native Windows executable's PE resource directory for `RT_ICON` and `RT_GROUP_ICON`, then compares every image in the matching group byte-for-byte with the source ICO; an unrelated generic icon cannot pass. The same verifier runs before Windows release packaging. Mac archive CI extracts the real app and verifies its icon declaration and exact ICNS bytes after strict signature verification. The `app_icon` Cargo target checks embedded BMP decoding and malformed-input errors without requiring external artwork or a video display.
+
+Linux CI also runs a bounded title window through SDL's X11 backend under Xvfb and fails if SDL rejects the window icon; its dummy-driver CLI tests remain separate. This exercises a virtual display, not a hardware desktop session or automatic file-manager icon installation.
 
 The iOS build script uses Xcode's `actool` for the selected device or simulator SDK, targeting iPhone and iPad with minimum iOS 15. It merges the compiled AppIcon metadata into the version-stamped bundle before simulator signing, and includes `Assets.car` and the generated family icon files. Apple packaging rejects absent catalogs or missing iPhone/iPad icon metadata. Device signing and provisioning remain required for installation; icon generation does not provide them.
 

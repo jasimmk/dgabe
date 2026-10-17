@@ -113,6 +113,9 @@ jobs:
         run: |
           node tools/release/version.mjs "$RELEASE_VERSION" "$RELEASE_BUILD_NUMBER"
           cargo build --locked --release --target "$RELEASE_TARGET"
+          if [ "$RELEASE_TARGET" = x86_64-pc-windows-msvc ]; then
+            node tools/release/verify-pe-icon.mjs "target/$RELEASE_TARGET/release/$RELEASE_BINARY" assets/icons/app.ico
+          fi
           node tools/release/package-desktop.mjs --target "$RELEASE_TARGET" --version "$RELEASE_VERSION" --binary "target/$RELEASE_TARGET/release/$RELEASE_BINARY" --output dist
       - uses: actions/upload-artifact@v7.0.2
         with:
