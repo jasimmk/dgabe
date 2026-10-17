@@ -10,6 +10,7 @@ An independent platform adventure written in Rust with SDL3. Explore a twelve-st
 - [Twelve stages, rules and controls](#play-through-twelve-stages)
 - [Platform builds and verification](#build-for-your-platform)
 - [Contribute and module map](#contribute)
+- [License](#license)
 - [CI matrix](#ci-matrix)
 - [Release all platforms](#release-all-platforms)
 - [Architecture](#architecture)
@@ -429,7 +430,7 @@ npm ci --ignore-scripts
 npm test
 ```
 
-The tests use temporary local Git repositories and fixture packages. They do not publish a release. The private npm package grants no license to the game; no npm publishing plugin is configured.
+The tests use temporary local Git repositories and fixture packages. They do not publish a release. The private npm tooling and the game's original work use the project's 0BSD license; no npm publishing plugin is configured.
 
 The full suite uses Unix `zip`, `unzip` and `tar` for aggregation/publication fixtures. Windows CI runs the portable planning, stamping, desktop-packager and Apple-metadata tests instead:
 
@@ -454,7 +455,13 @@ Save to a writable location; iOS paths must be inside the app sandbox. Export pr
 
 All game code, maps, visuals, lettering and audio are independently created. Contributions must use independently created material or third-party material with an explicit compatible license and recorded provenance. The project does not need a neighboring checkout or proprietary content to build.
 
-When sharing a contribution, explain the player-visible result, affected modules, checks actually run and their outcomes. For visual changes, include a real screenshot; for platform claims, record the exact target, command and observed result. Update the story, controls, design notes or verification records when behavior changes. Keep credentials, certificates and provisioning profiles out of the repository. No LICENSE file is currently included; do not assume a license grant.
+When sharing a contribution, explain the player-visible result, affected modules, checks actually run and their outcomes. For visual changes, include a real screenshot; for platform claims, record the exact target, command and observed result. Update the story, controls, design notes or verification records when behavior changes. Keep credentials, certificates and provisioning profiles out of the repository.
+
+### License
+
+Dangerous Gabe's original code, campaign content, visuals, lettering, audio and documentation are available under the [BSD Zero Clause License (0BSD)](LICENSE). It permits use, copying, modification and distribution for any purpose, including commercial use, without an attribution or notice-retention condition. The license includes a warranty and liability disclaimer. See the [OSI license text](https://opensource.org/license/0bsd) and [SPDX 0BSD entry](https://spdx.org/licenses/0BSD.html).
+
+Third-party dependencies retain their own licenses and notice requirements; the project license does not replace them. See [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt) for the bundled runtime dependency notices.
 
 ### CI matrix
 

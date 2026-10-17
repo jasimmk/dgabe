@@ -1,6 +1,7 @@
 {
   "name": "dangerous-gabe-release-tools",
   "private": true,
+  "license": "0BSD",
   "type": "module",
   "engines": { "node": ">=24.15.0" },
   "scripts": {

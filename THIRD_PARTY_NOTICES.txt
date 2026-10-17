@@ -4,8 +4,9 @@ These notices reproduce the license texts distributed with the locked runtime
 Rust dependencies and the SDL native library. MIT is selected where a runtime
 crate offers MIT OR Apache-2.0. Build tooling and optional unlinked SDL extensions
 are not included. The Rust standard library retains its upstream licensing.
-This file grants no license for the Dangerous Gabe project itself; the project
-currently has no LICENSE file. Static SDL linkage does not remove Windows CRT,
+The original Dangerous Gabe project is licensed under 0BSD; see LICENSE.
+Third-party components retain the licenses reproduced below.
+Static SDL linkage does not remove Windows CRT,
 Linux system-library, operating-system SDK, or platform distribution requirements.
 
 bitflags 2.13.2
