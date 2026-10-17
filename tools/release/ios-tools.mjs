@@ -48,8 +48,17 @@ export async function copyApp(source, destination) {
   await cp(source, destination, { recursive: true, errorOnExist: true, force: false });
 }
 
-export function inspectTarget(app, bundle, kind, run) {
+export async function inspectTarget(app, bundle, kind, run) {
+  if (basename(app, '.app') !== bundle.executable) {
+    throw new Error('App executable must match the app basename for sideload compatibility');
+  }
   const binary = join(app, bundle.executable);
+  const file = await lstat(binary).catch(error => {
+    throw new Error(`App executable is unavailable: ${bundle.executable}`, { cause: error });
+  });
+  if (!file.isFile() || file.size === 0 || (file.mode & 0o111) === 0) {
+    throw new Error('App executable must be a nonempty executable regular file');
+  }
   const arch = run('/usr/bin/lipo', ['-archs', binary]).stdout.trim();
   if (arch !== 'arm64') throw new Error('Apple archive requires an arm64 executable');
   const build = run('/usr/bin/xcrun', ['vtool', '-show-build', binary]).stdout;

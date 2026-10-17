@@ -16,7 +16,13 @@ gabe_target_dir="$(cd "$gabe_target_dir" && pwd)"
 gabe_app="$gabe_target_dir/$gabe_target/release/bundle/DangerousGabe.app"
 rm -rf "$gabe_app"
 mkdir -p "$gabe_app"
-cp "$gabe_target_dir/$gabe_target/release/dangerous-gabe" "$gabe_app/dangerous-gabe"
+gabe_executable="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$gabe_root/platform/Info.plist")"
+if [ "$gabe_executable" != "$(basename "$gabe_app" .app)" ]; then
+    echo 'iOS bundle executable must match its app basename for sideload compatibility.' >&2
+    exit 1
+fi
+cp "$gabe_target_dir/$gabe_target/release/dangerous-gabe" "$gabe_app/$gabe_executable"
+chmod 755 "$gabe_app/$gabe_executable"
 cp "$gabe_root/platform/Info.plist" "$gabe_app/Info.plist"
 gabe_partial="$(mktemp -t gabe-icon-info)"
 trap 'rm -f "$gabe_partial"' EXIT

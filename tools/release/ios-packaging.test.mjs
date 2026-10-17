@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { packageIos, parseArguments } from './package-ios.mjs';
@@ -18,7 +18,7 @@ async function fixture(t) {
   const temporaryRoot = join(root, 'private');
   await mkdir(temporaryRoot);
   await writeFile(join(app, 'Info.plist'), JSON.stringify(info));
-  await writeFile(join(app, 'dangerous-gabe'), 'fixture, not executable code');
+  await writeFile(join(app, info.CFBundleExecutable), 'fixture, not executable code', { mode: 0o755 });
   const noticeFile = join(root, 'THIRD_PARTY_NOTICES.txt');
   await writeFile(noticeFile, 'fixture notices');
   return { root, app, temporaryRoot, noticeFile, options: { kind: 'device', app, version: '0.1.0', output: join(root, 'dist') } };
@@ -31,6 +31,23 @@ test('Apple CLI rejects missing, duplicate and unknown options', () => {
     assert.throws(() => parseArguments(invalid));
   }
 });
+
+for (const problem of ['basename', 'missing', 'empty', 'directory', 'permissions']) {
+  test(`Apple packaging rejects ${problem} executable mismatch before signing or archiving`, async t => {
+    const f = await fixture(t); const tools = simulatedTools();
+    const executable = join(f.app, info.CFBundleExecutable);
+    if (problem === 'basename') {
+      const renamed = join(f.root, 'DifferentName.app');
+      await rename(f.app, renamed);
+      f.options.app = renamed;
+    } else if (problem === 'missing') await rename(executable, join(f.app, 'dangerous-gabe'));
+    else if (problem === 'empty') await writeFile(executable, '');
+    else if (problem === 'directory') { await rm(executable); await mkdir(executable); }
+    else await chmod(executable, 0o644);
+    await assert.rejects(packageIos(f.options, { ...f, run: tools.run, env: {} }), /executable/i);
+    assert(!tools.calls.some(call => ['ditto', 'codesign', 'security'].includes(call.command)));
+  });
+}
 
 test('compiled catalog and both family icon files must exist before any archive or signing', async t => {
   const f = await fixture(t); const tools = simulatedTools();
@@ -52,6 +69,7 @@ test('both universal icons and the compiled catalog survive archive staging', as
       assert.equal(readFileSync(join(app, 'Assets.car'), 'utf8'), 'compiled catalog fixture');
       assert.equal(readFileSync(join(app, 'AppIcon60x60@2x.png'), 'utf8'), 'phone icon fixture');
       assert.equal(readFileSync(join(app, 'AppIcon76x76@2x~ipad.png'), 'utf8'), 'tablet icon fixture');
+      assert.equal(readFileSync(join(app, info.CFBundleExecutable), 'utf8'), 'fixture, not executable code');
       observed = true;
     }
     return tools.run(file, args, options);
@@ -78,7 +96,14 @@ for (const kind of ['device', 'simulator']) {
 
 test('simulated signing command flow uses Payload and deletes temporary keychain and secrets', async t => {
   const f = await fixture(t); const tools = simulatedTools();
-  const assets = await packageIos(f.options, { ...f, run: tools.run, env: signingEnv });
+  const { readFileSync } = await import('node:fs');
+  const run = (file, args, options) => {
+    if (basename(file) === 'codesign' && args[0] === '--force') {
+      assert.equal(readFileSync(join(args.at(-1), info.CFBundleExecutable), 'utf8'), 'fixture, not executable code');
+    }
+    return tools.run(file, args, options);
+  };
+  const assets = await packageIos(f.options, { ...f, run, env: signingEnv });
   assert.equal(basename(assets[1]), 'dangerous-gabe-0.1.0-ios-iphone-ipad.ipa');
   assert.equal(tools.archives[1].keepParent, false);
   assert.equal(tools.archives[1].metadata.signing, 'developer-signed');
