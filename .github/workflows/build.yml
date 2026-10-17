@@ -65,6 +65,18 @@ jobs:
       - name: Verify native Windows executable icon resources and original artwork
         if: runner.os == 'Windows'
         run: node tools/release/verify-pe-icon.mjs target/release/dangerous-gabe.exe assets/icons/app.ico
+      - name: Package the native Windows release for Unix validation
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          gabe_version="$(node --input-type=module -e 'import {readFileSync} from "node:fs"; import {packageVersion} from "./tools/release/version.mjs"; console.log(packageVersion(readFileSync("Cargo.toml", "utf8")));')"
+          node tools/release/package-desktop.mjs --target x86_64-pc-windows-msvc --version "$gabe_version" --binary target/release/dangerous-gabe.exe --output dist
+      - uses: actions/upload-artifact@v7.0.2
+        if: runner.os == 'Windows'
+        with:
+          name: windows-archive-roundtrip
+          path: dist/*.zip
+          if-no-files-found: error
       - name: Exercise the Linux window icon on a real X11 backend
         if: runner.os == 'Linux'
         env:
@@ -79,6 +91,24 @@ jobs:
           SDL_VIDEO_DRIVER: dummy
           SDL_AUDIO_DRIVER: dummy
         run: cargo test --locked --test cli
+  windows-archive-roundtrip:
+    needs: desktop
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24'
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: windows-archive-roundtrip
+          path: dist
+      - name: Validate actual Windows-produced ZIP on the publication host
+        shell: bash
+        run: |
+          gabe_version="$(node --input-type=module -e 'import {readFileSync} from "node:fs"; import {packageVersion} from "./tools/release/version.mjs"; console.log(packageVersion(readFileSync("Cargo.toml", "utf8")));')"
+          node tools/release/verify-windows-archive.mjs --archive "dist/dangerous-gabe-$gabe_version-x86_64-pc-windows-msvc.zip" --version "$gabe_version" --commit "$GITHUB_SHA"
   macos-release:
     runs-on: macos-15
     timeout-minutes: 30

@@ -478,10 +478,13 @@ Both workflows use Node 24 action runtimes: checkout 7.0.1, setup-node 7.1.0, up
 | macOS iOS compilation job | Both supplied device and simulator build/package scripts, with both Rust targets installed, Cargo caching and a 30-minute timeout |
 | macOS release regression, `macos-15` | Explicit `aarch64-apple-darwin` release build at macOS 11.0, real desktop ZIP creation/extraction, strict app signature verification, binary minimum-OS and availability-symbol checks; no publication |
 | Node release tooling, Ubuntu/macOS/Windows | Node 24 and locked npm installation; full suite on Unix publishing/Apple hosts, version/planning/desktop/Apple-metadata fixtures on Windows; 10-minute timeout |
+| Windows archive roundtrip, Ubuntu | Download the actual native Windows job's release ZIP and read it with the strict publication archive validator on Linux; verify canonical paths, embedded version/source/signing metadata, executable header and nonempty documentation |
 
 The native suite intentionally selects `--lib --test simulation --test campaign_routes`; the CLI step selects only `--test cli`. The campaign runner is part of normal Cargo target discovery through its manifest registration. No duplicate standalone route command is needed in CI. The suites contain six library input regressions, seventeen simulation integration tests and ten bounded CLI cases, plus the custom ordinary-input campaign executable. A combined local run passed on Apple Silicon with Rust stable and default vendored SDL3, including the CLI suite; [the exact record](#ci-configuration-and-local-validation) is below. Windows, Linux, fresh iOS compilation and hosted CI were not run as part of that validation.
 
 ## Release all platforms
+
+Windows ZIP packaging writes explicit forward-slash entry names through .NET's `ZipArchive` API so the archives are portable to the Unix publication host. The manifest validator continues to reject backslashes, traversal and ambiguous metadata. CI transfers an actual Windows-produced package to Ubuntu for this boundary check; fixture-only archive tests do not replace it.
 
 The [Release all platforms workflow](.github/workflows/release.yml) provides a manual release option after a change reaches the default branch. It reuses all CI gates, plans a version with the semantic-release JavaScript API, packages every required platform at that source SHA and stamped version, then validates and publishes them in one job. It does not rely on a tag push starting another workflow: [events caused by `GITHUB_TOKEN` generally do not start new workflow runs](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow).
 

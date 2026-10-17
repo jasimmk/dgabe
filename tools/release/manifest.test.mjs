@@ -86,7 +86,7 @@ test('unexpected versioned filenames and schema failures are rejected', async t 
 });
 
 test('archive reader refuses traversal and ambiguous embedded manifests', () => {
-  for (const listing of ['../release-metadata.json\n', '/release-metadata.json\n',
+  for (const listing of ['../release-metadata.json\n', '/release-metadata.json\n', 'root\\release-metadata.json\n',
     'root/release-metadata.json\nother/release-metadata.json\n']) {
     assert.throws(() => archiveMetadata('fixture.zip', () => listing));
   }
