@@ -282,6 +282,8 @@ cargo build --locked --release --target aarch64-apple-darwin
 
 The desktop build script produces a host executable. The [release workflow](#release-all-platforms) packages only Apple Silicon macOS app bundles with ad hoc signatures. Intel macOS releases are excluded because the required hosted runner is unavailable for this project. Developer ID signing and notarization remain separate work.
 
+The project's Cargo configuration defaults `MACOSX_DEPLOYMENT_TARGET` to **11.0**, the existing Rust arm64 floor, before compiling Rust and vendored SDL3. An explicit environment override is respected. Build on macOS with Xcode selected so the build script can locate its compiler-rt archive. The deployment floor is not evidence of execution on macOS 11; recorded native runs used a newer system.
+
 ### Windows x64
 
 Prerequisites on a Windows host: Rust through rustup, **Visual Studio C++ Build Tools with the Desktop development with C++ workload**, a Windows SDK, and CMake on PATH. Open a developer PowerShell with the MSVC build environment, then run:
@@ -467,11 +469,14 @@ Third-party dependencies retain their own licenses and notice requirements; the 
 
 The [workflow](.github/workflows/build.yml) runs on pushes, pull requests, manual dispatch and reusable `workflow_call` from the release workflow. Native Rust jobs use stable with rustfmt and Clippy, Cargo caching, read-only repository permissions and a 20-minute timeout. A new run cancels an older CI run for the same workflow/ref.
 
+Both workflows use Node 24 action runtimes: checkout 7.0.1, setup-node 7.1.0, upload-artifact 7.0.2, download-artifact 8.0.2 and rust-cache 2.9.2, verified against their official action metadata on 2026-10-17. The Rust toolchain action is composite. Tooling jobs still install Node 24 explicitly; the action runtime and the Node version running project scripts are separate settings.
+
 | Job | Gates and test targets |
 | --- | --- |
 | macOS, Windows, Linux native matrix | Format check, default-vendored Clippy with warnings denied, release build, then library input tests, `simulation` integration tests and `campaign_routes` ordinary-input campaign |
 | Linux native job, CLI step | `cli` process-level tests with `SDL_VIDEO_DRIVER=dummy` and `SDL_AUDIO_DRIVER=dummy` |
 | macOS iOS compilation job | Both supplied device and simulator build/package scripts, with both Rust targets installed, Cargo caching and a 30-minute timeout |
+| macOS release regression, `macos-15` | Explicit `aarch64-apple-darwin` release build at macOS 11.0, real desktop ZIP creation/extraction, strict app signature verification, binary minimum-OS and availability-symbol checks; no publication |
 | Node release tooling, Ubuntu/macOS/Windows | Node 24 and locked npm installation; full suite on Unix publishing/Apple hosts, version/planning/desktop/Apple-metadata fixtures on Windows; 10-minute timeout |
 
 The native suite intentionally selects `--lib --test simulation --test campaign_routes`; the CLI step selects only `--test cli`. The campaign runner is part of normal Cargo target discovery through its manifest registration. No duplicate standalone route command is needed in CI. The suites contain six library input regressions, seventeen simulation integration tests and ten bounded CLI cases, plus the custom ordinary-input campaign executable. A combined local run passed on Apple Silicon with Rust stable and default vendored SDL3, including the CLI suite; [the exact record](#ci-configuration-and-local-validation) is below. Windows, Linux, fresh iOS compilation and hosted CI were not run as part of that validation.
@@ -561,7 +566,7 @@ The rendering interface is `presentation::paint(&mut Canvas<Window>, &World, boo
 
 Audio uses an SDL3 playback stream with newly synthesized decaying sine pulses selected from world changes. The simulation stays silent and deterministic. Queued audio is bounded; failure to open or write an output stream disables audio while retaining play. Audible quality, interruption recovery and physical-device routing have not been independently verified.
 
-The Apple build boundary consists of the supplied SDK/CMake script and `build.rs`. SDL's Objective-C availability checks need Apple's compiler-rt archive for the minimum iOS15 build. The build script locates the archive through `xcrun clang --print-resource-dir` and passes it directly to the binary linker; this also avoids embedding a universal native archive in a Rust rlib. Native SDKs, signing and packaging remain platform responsibilities.
+The Apple build boundary consists of the supplied SDK/CMake script, Cargo deployment configuration and `build.rs`. SDL's Objective-C availability checks need Apple's compiler-rt archive. The build script selects SDK `macosx`, `iphoneos` or `iphonesimulator` through `xcrun --sdk SDK clang --print-resource-dir`, then uses the corresponding `lib/darwin/libclang_rt.osx.a`, `libclang_rt.ios.a` or `libclang_rt.iossim.a`. It checks the archive exists and passes it directly to the binary linker, avoiding embedding a universal native archive in a Rust rlib. Non-Apple targets return before invoking xcrun. macOS defaults to deployment floor 11.0; the iOS toolchain retains its separate 15.0 floor. Native SDKs, signing and packaging remain platform responsibilities.
 
 ## Visual design
 
@@ -673,6 +678,12 @@ That is **33 library/integration cases plus the campaign executable**, all from 
 No checks were suppressed, tests skipped or product source changed to pass these gates. The local workspace is not initialized as a Git repository; no Git initialization, commit, push or hosted workflow dispatch occurred. Windows/Linux jobs and new iOS package builds were not executed in this task. Earlier physical/simulator observations below are preserved as historical evidence, not revalidated by the dummy-driver tests.
 
 ### Release tooling validation
+
+**macOS linker correction, 2026-10-17:** [release run 39023130156](https://github.com/jasimmk/dgabe/actions/runs/39023130156) failed in the macOS arm64 package build with undefined `___isPlatformVersionAtLeast`, after its CI and other platform packaging succeeded; publication was skipped. A fresh local `cargo +stable build --locked --release --target aarch64-apple-darwin` in isolated `target/macos-linker-repro`, with `MACOSX_DEPLOYMENT_TARGET=11.0`, reproduced that symbol failure. Adding the selected Xcode macOS compiler-rt archive made the same build pass. The fresh SDL CMake cache and final Mach-O both recorded 11.0, and `nm -u` showed no unresolved availability helper. A real version 0.1.0 ZIP was created and extracted; its app passed strict ad hoc signature verification. Locked format and Clippy checks and all 57 Node 24 release fixtures also passed. The new hosted regression job exercises that exact build/package boundary, rather than relying only on the host-default Cargo build.
+
+The helper is defined by [LLVM compiler-rt](https://github.com/llvm/llvm-project/blob/main/compiler-rt/lib/builtins/os_version_check.c); the shared deployment environment follows [Rust's Apple target policy](https://doc.rust-lang.org/rustc/platform-support/apple-darwin.html#os-version). This correction does not raise the macOS floor, disable SDL features, or publish a release. Runtime execution on macOS 11, Developer ID notarization and real Apple device signing remain unverified.
+
+The changed build script also passed actual local device and simulator `platform/ios-build.sh` builds: arm64 unsigned device bundle, arm64 simulator bundle with ad hoc signature and both plist checks. The separate iOS 15.0 deployment configuration remained intact. The explicit library/simulation/campaign/CLI Cargo invocation passed all 33 cases plus the ordinary-input campaign at Victory25711 with four lives. These are compile and test observations; no new simulator or physical-device execution was performed for this correction.
 
 **Hosted CI dependency correction, 2026-10-17:** [main run 39021443192](https://github.com/jasimmk/dgabe/actions/runs/39021443192) completed with six successful jobs and one failed Ubuntu desktop job. SDL3 3.4.18 configuration reported a missing XTEST dependency; the missing `libxtst-dev` is now included in both CI and Linux release build prerequisites, matching [SDL3's official Linux dependencies](https://wiki.libsdl.org/SDL3/README-linux#build-dependencies) and [Ubuntu's package listing](https://packages.ubuntu.com/noble/libxtst-dev). SDL features and test gates remain enabled. The current release contract removes the unavailable Intel macOS runner and requires six archives; the packager rejects the removed target. Follow-up CI results belong to the new revision rather than the earlier failure.
 

@@ -25,8 +25,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version: '24'
           cache: npm
@@ -45,11 +45,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2.9.2
       - name: Linux SDL3 dependencies
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y cmake pkg-config libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxfixes-dev libxss-dev libxtst-dev libwayland-dev libxkbcommon-dev libasound2-dev libpulse-dev libudev-dev
@@ -67,14 +67,44 @@ jobs:
           SDL_VIDEO_DRIVER: dummy
           SDL_AUDIO_DRIVER: dummy
         run: cargo test --locked --test cli
+  macos-release:
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      MACOSX_DEPLOYMENT_TARGET: '11.0'
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - uses: Swatinem/rust-cache@v2.9.2
+        with:
+          key: macos-explicit-release-11
+      - name: Build the exact macOS release target
+        run: cargo build --locked --release --target aarch64-apple-darwin
+      - name: Package and verify the actual archived app
+        shell: bash
+        run: |
+          gabe_version="$(node --input-type=module -e 'import {readFileSync} from "node:fs"; import {packageVersion} from "./tools/release/version.mjs"; console.log(packageVersion(readFileSync("Cargo.toml", "utf8")));')"
+          gabe_name="dangerous-gabe-$gabe_version-aarch64-apple-darwin"
+          node tools/release/package-desktop.mjs --target aarch64-apple-darwin --version "$gabe_version" --binary target/aarch64-apple-darwin/release/dangerous-gabe --output dist
+          unzip -t "dist/$gabe_name.zip"
+          ditto -x -k "dist/$gabe_name.zip" "$RUNNER_TEMP/gabe-macos-verify"
+          codesign --verify --deep --strict "$RUNNER_TEMP/gabe-macos-verify/$gabe_name/Dangerous Gabe.app"
+          node --input-type=module -e 'import {execFileSync} from "node:child_process"; const binary=process.argv[1]; const load=execFileSync("otool",["-l",binary],{encoding:"utf8"}); if(!/\bminos 11\.0\b/.test(load)) throw new Error("Expected macOS 11.0 deployment floor"); const unresolved=execFileSync("nm",["-u",binary],{encoding:"utf8"}); if(unresolved.includes("___isPlatformVersionAtLeast")) throw new Error("Unresolved Objective-C availability runtime");' target/aarch64-apple-darwin/release/dangerous-gabe
   ios:
     runs-on: macos-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-ios,aarch64-apple-ios-sim
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2.9.2
       - run: bash platform/ios-build.sh simulator
       - run: bash platform/ios-build.sh device
