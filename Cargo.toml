@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
 description = "An independently built Rust and SDL3 platform adventure"
+license = "0BSD"
 publish = false
 
 [lib]
