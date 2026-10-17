@@ -279,7 +279,7 @@ rustup target add aarch64-apple-darwin
 cargo build --locked --release --target aarch64-apple-darwin
 ```
 
-An Intel or universal macOS release additionally needs a matching target, SDK/compiler support and separately built architecture slices. The desktop build script produces an executable. The [release workflow](#release-all-platforms) separately packages arm64 and Intel app bundles with ad hoc signatures; Developer ID signing and notarization remain separate work.
+The desktop build script produces a host executable. The [release workflow](#release-all-platforms) packages only Apple Silicon macOS app bundles with ad hoc signatures. Intel macOS releases are excluded because the required hosted runner is unavailable for this project. Developer ID signing and notarization remain separate work.
 
 ### Windows x64
 
@@ -301,7 +301,7 @@ Prerequisites: Rust through rustup, a C/C++ compiler, CMake, pkg-config and deve
 sudo apt-get update
 sudo apt-get install -y build-essential cmake pkg-config \
   libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev \
-  libxfixes-dev libxss-dev libwayland-dev libxkbcommon-dev \
+  libxfixes-dev libxss-dev libxtst-dev libwayland-dev libxkbcommon-dev \
   libasound2-dev libpulse-dev libudev-dev
 bash platform/desktop-build.sh
 ./target/release/dangerous-gabe
@@ -494,12 +494,11 @@ The planner uses semantic-release itself. Publication repeats the dry run and re
 
 ### Required release assets
 
-All seven archives are mandatory, with embedded version/target/signing/source metadata and third-party notices. Desktop archives also include this guide; macOS archives contain an app bundle. Labels below follow [GitHub's native runner reference](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).
+All six archives are mandatory: four desktop targets plus device and simulator bundles. Each includes embedded version/target/signing/source metadata and third-party notices. Desktop archives also include this guide; the macOS archive contains an app bundle. Intel macOS is not a release target. Labels below follow [GitHub's native runner reference](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).
 
 | Platform | Native runner | Asset (`V` = planned version) |
 | --- | --- | --- |
 | macOS Apple Silicon | `macos-15` | `dangerous-gabe-V-aarch64-apple-darwin.zip` |
-| macOS Intel | `macos-15-intel` | `dangerous-gabe-V-x86_64-apple-darwin.zip` |
 | Windows x64 | `windows-latest` | `dangerous-gabe-V-x86_64-pc-windows-msvc.zip` |
 | Linux x64 | `ubuntu-24.04` | `dangerous-gabe-V-x86_64-unknown-linux-gnu.tar.gz` |
 | Linux arm64 | `ubuntu-24.04-arm` | `dangerous-gabe-V-aarch64-unknown-linux-gnu.tar.gz` |
@@ -633,7 +632,7 @@ Status recorded **2026-10-17**. The twelve-stage expansion, tighter opposition a
 | iPhone/iPad device release build | Initial integration verified | Unsigned arm64 app; signing and physical execution pending |
 | Windows and Linux build/run | Pending | Native scripts and CI supplied; no recorded destination build/run |
 | Cross-platform CI configuration | Complete; local native equivalents passed | Native format/Clippy/build/test matrix, Linux CLI tests and Apple compilation jobs; Windows/Linux and remote execution remain unverified |
-| All-platform release automation | Implemented; hosted run pending | Semantic-release plan/build/validate/publish, seven mandatory archives and optional provisioned IPA; actual GitHub/Apple credential paths unverified |
+| All-platform release automation | Implemented; hosted release run pending | Semantic-release plan/build/validate/publish, six mandatory archives and optional provisioned IPA; actual release publication/Apple credential paths unverified |
 | Store distribution and notarization | Pending | Developer ID/notarization, App Store assets/submission and physical-device execution |
 
 Future work includes persistence, configurable bindings, controller support, more stages, accessibility options and expanded audio. These are planned possibilities, not shipped features.
@@ -668,9 +667,13 @@ No checks were suppressed, tests skipped or product source changed to pass these
 
 ### Release tooling validation
 
+**Hosted CI dependency correction, 2026-10-17:** [main run 39021443192](https://github.com/jasimmk/dgabe/actions/runs/39021443192) completed with six successful jobs and one failed Ubuntu desktop job. SDL3 3.4.18 configuration reported a missing XTEST dependency; the missing `libxtst-dev` is now included in both CI and Linux release build prerequisites, matching [SDL3's official Linux dependencies](https://wiki.libsdl.org/SDL3/README-linux#build-dependencies) and [Ubuntu's package listing](https://packages.ubuntu.com/noble/libxtst-dev). SDL features and test gates remain enabled. The current release contract removes the unavailable Intel macOS runner and requires six archives; the packager rejects the removed target. Follow-up CI results belong to the new revision rather than the earlier failure.
+
+The revised six-archive contract passed **57 Node 24.22.0 tests, zero failed or skipped**, locally on macOS, including explicit Intel target rejection and omission of each required archive in turn. The actual local publication fixture adapts to the six required archives. Actionlint 1.7.12 and `git diff --check` also passed for the correction. These local helper results do not establish a Linux build; the hosted run must confirm the dependency fix.
+
 On **2026-10-17**, `npm ci --ignore-scripts` completed against the project lockfile. **Node 24.22.0** ran the final `node --test tools/release/*.test.mjs` suite on native Apple Silicon macOS: **56 passed, 0 failed, 0 skipped** in 7.63 seconds. This covers 18 orchestration cases, 19 Apple packaging/metadata cases, eight manifest cases, six desktop packaging cases, four version cases and one real local publication fixture. Node 24 was selected with `npx --yes --package=node@24 node --test tools/release/*.test.mjs`; the earlier 55-case suite also passed with Node 25.4.0. `actionlint .github/workflows/build.yml .github/workflows/release.yml` passed with actionlint **1.7.12** after the final workflow changes.
 
-The orchestration tests invoke real semantic-release **25.0.9** dry runs in temporary local Git repositories for patch/minor/major/no-change/forced-docs/initial-1.0.0 planning. They verify a stale source, moved default branch, dirty checkout, version mismatch and missing asset prevent publication. A mock publisher confirms complete validation precedes exactly one non-dry-run invocation; downloaded ignored plan/assets are present in that fixture. The local publication fixture uses actual semantic-release prepare, `@semantic-release/git`, a local bare origin and all seven fixture archives to verify metadata-only commit and tag ordering, without a GitHub or npm publish plugin. Manifest tests cover embedded versions/signing/source metadata and SHA256 output. Apple signing commands, failures and credential cleanup use injected tools; those fixtures are not real provisioning evidence.
+That initial orchestration suite invoked real semantic-release **25.0.9** dry runs in temporary local Git repositories for patch/minor/major/no-change/forced-docs/initial-1.0.0 planning. It verified a stale source, moved default branch, dirty checkout, version mismatch and missing asset prevent publication. A mock publisher confirmed complete validation precedes exactly one non-dry-run invocation; downloaded ignored plan/assets were present in that fixture. The local publication fixture used actual semantic-release prepare, `@semantic-release/git`, a local bare origin and the then-required seven archives to verify metadata-only commit and tag ordering, without a GitHub or npm publish plugin. The current fixture follows the six-archive contract above. Manifest tests cover embedded versions/signing/source metadata and SHA256 output. Apple signing commands, failures and credential cleanup use injected tools; those fixtures are not real provisioning evidence.
 
 Separate local packaging observations used existing version **0.1.0/build 1** executables: the macOS arm64 `.app` archive passed plist and ad hoc signature validation at `target/release-check/dangerous-gabe-0.1.0-aarch64-apple-darwin.zip`; unsigned iPhone/iPad and simulator archives were produced from the existing Apple bundles, their embedded metadata was read successfully, and the extracted simulator app passed strict signature verification. The Apple executables belong to the historical initial integration; repackaging them does not establish a current twelve-stage Apple rebuild/run. Real IPA signing remains unverified.
 

@@ -7,7 +7,6 @@ import { flags, isMain, packageVersion, stableVersion } from './version.mjs';
 
 export const DESKTOP_TARGETS = Object.freeze({
   'aarch64-apple-darwin': { platform: 'darwin', extension: 'zip', signing: 'ad-hoc' },
-  'x86_64-apple-darwin': { platform: 'darwin', extension: 'zip', signing: 'ad-hoc' },
   'x86_64-pc-windows-msvc': { platform: 'win32', extension: 'zip', signing: 'unsigned' },
   'x86_64-unknown-linux-gnu': { platform: 'linux', extension: 'tar.gz', signing: 'unsigned' },
   'aarch64-unknown-linux-gnu': { platform: 'linux', extension: 'tar.gz', signing: 'unsigned' },

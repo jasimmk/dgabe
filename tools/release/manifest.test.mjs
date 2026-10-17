@@ -30,11 +30,12 @@ async function releaseFixture(t, change = () => {}) {
   return { root, directory, version };
 }
 
-test('complete seven-platform fixtures yield exact SHA256 checksums and versioned metadata', async t => {
+test('complete six-platform fixtures yield exact SHA256 checksums and versioned metadata', async t => {
   const options = await releaseFixture(t);
   const result = await validateArtifacts(options);
   assert.equal(result.version, options.version);
-  assert.equal(result.assets.length, 7);
+  assert.equal(result.assets.length, 6);
+  assert.equal(result.assets.some(asset => asset.target === 'x86_64-apple-darwin'), false);
   const checksums = await readFile(join(options.directory, 'SHA256SUMS.txt'), 'utf8');
   const stored = JSON.parse(await readFile(join(options.directory, 'release-manifest.json'), 'utf8'));
   assert.deepEqual(stored, result);
@@ -47,11 +48,15 @@ test('complete seven-platform fixtures yield exact SHA256 checksums and versione
   }
 });
 
-test('missing assets block release without writing a partial manifest', async t => {
-  const options = await releaseFixture(t);
-  await rm(join(options.directory, expectedAssets(options.version)[6].file));
-  await assert.rejects(validateArtifacts(options), /Missing required/);
-  await assert.rejects(readFile(join(options.directory, 'release-manifest.json')), /ENOENT/);
+test('each of the six required assets blocks publication when missing', async t => {
+  const assets = expectedAssets('1.2.3');
+  assert.equal(assets.length, 6);
+  for (const asset of assets) {
+    const options = await releaseFixture(t);
+    await rm(join(options.directory, asset.file));
+    await assert.rejects(validateArtifacts(options), /Missing required/);
+    await assert.rejects(readFile(join(options.directory, 'release-manifest.json')), /ENOENT/);
+  }
 });
 
 test('empty and duplicate files cannot pass as complete releases', async t => {
@@ -108,6 +113,6 @@ test('an optional signed IPA must carry its own matching signing metadata', asyn
     ...(commit ? { sourceCommit: commit } : {}) }));
   runCommand('zip', ['-q', path, 'release-metadata.json'], { cwd: source });
   const manifest = await validateArtifacts(options);
-  assert.equal(manifest.assets.length, 8);
+  assert.equal(manifest.assets.length, 7);
   assert.equal(manifest.assets.find(asset => asset.file.endsWith('.ipa')).signing, 'developer-signed');
 });

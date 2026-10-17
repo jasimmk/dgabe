@@ -52,7 +52,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Linux SDL3 dependencies
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y cmake pkg-config libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxfixes-dev libxss-dev libwayland-dev libxkbcommon-dev libasound2-dev libpulse-dev libudev-dev
+        run: sudo apt-get update && sudo apt-get install -y cmake pkg-config libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxfixes-dev libxss-dev libxtst-dev libwayland-dev libxkbcommon-dev libasound2-dev libpulse-dev libudev-dev
       - name: Check formatting
         run: cargo fmt --all -- --check
       - name: Clippy with the default vendored SDL3 configuration
