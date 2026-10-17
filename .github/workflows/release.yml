@@ -76,9 +76,6 @@ jobs:
           - os: macos-15
             target: aarch64-apple-darwin
             binary: dangerous-gabe
-          - os: macos-15-intel
-            target: x86_64-apple-darwin
-            binary: dangerous-gabe
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             binary: dangerous-gabe.exe
@@ -109,7 +106,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Linux SDL3 dependencies
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y cmake pkg-config libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxfixes-dev libxss-dev libwayland-dev libxkbcommon-dev libasound2-dev libpulse-dev libudev-dev
+        run: sudo apt-get update && sudo apt-get install -y cmake pkg-config libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxfixes-dev libxss-dev libxtst-dev libwayland-dev libxkbcommon-dev libasound2-dev libpulse-dev libudev-dev
       - name: Stamp, build and package the planned version
         shell: bash
         run: |

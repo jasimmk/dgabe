@@ -18,7 +18,7 @@ async function fixture(t) {
 }
 
 test('all desktop formats use explicit argv and fixed safe archive roots', () => {
-  assert.equal(Object.keys(DESKTOP_TARGETS).length, 5);
+  assert.equal(Object.keys(DESKTOP_TARGETS).length, 4);
   for (const target of Object.keys(DESKTOP_TARGETS)) {
     const [command, args] = archiveCommand({ target, source: '/tmp/path with ; spaces/root', destination: '/tmp/out archive.zip' });
     assert.ok(command);
@@ -27,6 +27,13 @@ test('all desktop formats use explicit argv and fixed safe archive roots', () =>
     if (target.includes('windows')) assert.ok(args.includes('-LiteralPath') || args.includes('-Source'));
   }
   assert.throws(() => archiveCommand({ target: '../../evil', source: 'x', destination: 'y' }));
+});
+
+test('Intel macOS is neither a supported package target nor an accepted archive command', async () => {
+  const target = 'x86_64-apple-darwin';
+  assert.equal(Object.hasOwn(DESKTOP_TARGETS, target), false);
+  assert.throws(() => archiveCommand({ target, source: 'fixture', destination: 'fixture.zip' }), /Unsupported desktop target/);
+  await assert.rejects(packageDesktop({ target, version: '1.2.3' }), /Unsupported desktop target/);
 });
 
 test('Windows packaging stages its executable, documentation and version metadata without invoking a shell', async t => {
