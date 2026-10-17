@@ -3,6 +3,7 @@ param(
     [Parameter(Mandatory = $true)][string]$Destination
 )
 $ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $sourceDirectory = Get-Item -LiteralPath $Source
 if (-not $sourceDirectory.PSIsContainer) { throw 'Archive source must be a directory' }
