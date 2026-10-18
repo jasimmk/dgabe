@@ -328,7 +328,8 @@ These are Mac-to-iOS cross builds. The [script](platform/ios-build.sh) selects t
 
 | Build | Output | Signing |
 | --- | --- | --- |
-| Device | `target/aarch64-apple-ios/release/bundle/DangerousGabe.app` | Unsigned |
+| Device | `target/aarch64-apple-ios/release/bundle/DangerousGabe.app` | Unsigned, or development-signed when `GABE_PROFILE` is set |
+| Device IPA (default, unsigned builds only) | `target/aarch64-apple-ios/release/bundle/DangerousGabe-unsigned.ipa` | Unsigned; `Payload/DangerousGabe.app` zipped for re-signing tools |
 | Apple Silicon simulator | `target/aarch64-apple-ios-sim/release/bundle/DangerousGabe.app` | Ad hoc signed by the script |
 
 To install and launch on either an iPhone or iPad simulator, choose a shutdown device's UDID from the first command and enter it at the prompt:
@@ -345,7 +346,34 @@ xcrun simctl launch "$GABE_SIMULATOR_ID" dev.dangerousgabe.game
 
 Skip the boot command for an already booted simulator. Choose an explicit UDID when several simulators are running. For a bounded run, append `--smoke` to the launch command; use `simctl launch --console` to see its result. The iPhone and iPad use the same simulator bundle.
 
-Installing on a physical device requires your Apple signing identity, matching provisioning profile, bundle identifier and device deployment through Xcode or Apple's tools. The build script produces an unsigned device bundle. The [release workflow](#release-all-platforms) can additionally sign a registered-device IPA when its Apple secrets are configured. Physical-device execution, real credential signing and App Store distribution have not been verified; store submission remains separate work.
+#### Install and test on a physical iPhone or iPad
+
+Device installation needs, on the building Mac:
+
+- An **Apple Development** certificate with its private key in the login keychain. `security find-identity -v -p codesigning` must list it.
+- A development provisioning profile from the same team with an explicit (non-wildcard) App ID and a device list that includes every iPhone and iPad UDID you will test. One profile can cover both device families. Keep profiles in the gitignored `.profiles/` directory; never commit them.
+- **Developer Mode** turned on for each device (Settings › Privacy & Security › Developer Mode), with the device paired to the Mac.
+
+Build and sign in one step. `GABE_SIGN_IDENTITY` is optional and defaults to `Apple Development`; pass a certificate name or SHA-1 fingerprint when several identities match:
+
+```sh
+GABE_PROFILE=.profiles/YOUR_PROFILE.mobileprovision bash platform/ios-build.sh device
+```
+
+With `GABE_PROFILE` set, the script extracts the profile's entitlements and takes the bundle identifier from its `application-identifier` (minus the team prefix). If that differs from `dev.dangerousgabe.game` in [Info.plist](platform/Info.plist), only the built device bundle's `CFBundleIdentifier` is rewritten to match; the source plist and the simulator build keep `dev.dangerousgabe.game`. For example, App ID `4WDYEV5QQZ.dev.dangerousgabe.game.4WDYEV5QQZ` produces bundle `dev.dangerousgabe.game.4WDYEV5QQZ`. The script then embeds the profile as `embedded.mobileprovision`, signs the bundle and runs `codesign --verify --strict`. Without it, the device bundle stays unsigned and the script also writes `DangerousGabe-unsigned.ipa` next to it. That IPA is not directly installable; a sideloading or re-signing tool must sign it with your own identity first.
+
+Inspect the result, then install and launch on each connected device by its identifier. Use the bundle identifier the script printed on its `Launch:` line as `BUNDLE_ID`:
+
+```sh
+codesign -dvv --entitlements - target/aarch64-apple-ios/release/bundle/DangerousGabe.app
+xcrun devicectl list devices
+xcrun devicectl device install app --device DEVICE_ID target/aarch64-apple-ios/release/bundle/DangerousGabe.app
+xcrun devicectl device process launch --device DEVICE_ID BUNDLE_ID
+```
+
+Repeat the install and launch for the iPhone and the iPad; the same bundle serves both. For a bounded run, append `--smoke` to the launch command, or add `--console` to see the app's output. Common failures: a wildcard App ID (create an explicit one), a device missing from the profile (add its UDID and regenerate), no matching signing identity (import the certificate's `.p12`), or install error `0xe8008018` / "The identity used to sign the executable is no longer valid", which means the bundle was signed with a certificate the profile does not list, such as a macOS **Developer ID Application** identity. The script now rejects that case after signing. Sign with the Apple Development (iPhone Developer) certificate embedded in the profile. Record each device run in the [validation appendix](#validation-appendix).
+
+The [release workflow](#release-all-platforms) can additionally sign a registered-device IPA when its Apple secrets are configured. Physical-device execution and App Store distribution have not been verified; store submission remains separate work.
 
 Both mobile bundles use `DangerousGabe.app/DangerousGabe` with `CFBundleExecutable=DangerousGabe`; the Cargo output remains `dangerous-gabe`. Matching the app basename also accommodates sideload tools that derive an executable path from that name. Apple itself locates the executable through [CFBundleExecutable](https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html). Packaging checks the matching name, nonempty executable file and permissions before signing or archiving.
 
