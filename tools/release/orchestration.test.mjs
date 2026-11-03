@@ -142,7 +142,7 @@ test('publish validates full assets and performs exactly one real semantic-relea
 test('production configuration commits only metadata and never publishes npm', () => {
   const config = releaseOptions({ RELEASE_BRANCH: 'main', GITHUB_REPOSITORY: 'fixture/example' });
   const git = config.plugins.find(p => Array.isArray(p) && p[0] === '@semantic-release/git');
-  assert.deepEqual(git[1].assets, ['Cargo.toml', 'Cargo.lock', 'platform/Info.plist']);
+  assert.deepEqual(git[1].assets, ['Cargo.toml', 'Cargo.lock', 'platform/Info.plist', 'platform/macos/Info.plist']);
   assert.match(git[1].message, /\[skip ci\]/);
   assert.equal(config.plugins.some(p => String(p).includes('@semantic-release/npm')), false);
 });

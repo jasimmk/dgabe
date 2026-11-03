@@ -7,6 +7,8 @@ pub(crate) struct Options {
     pub(crate) scene: Mode,
     pub(crate) touch: bool,
     pub(crate) level: usize,
+    /// initial window size in points (default 960x640)
+    pub(crate) window: (u32, u32),
 }
 
 impl Options {
@@ -18,6 +20,7 @@ impl Options {
             scene: Mode::Title,
             touch: cfg!(target_os = "ios"),
             level: 0,
+            window: (960, 640),
         };
         let mut args = std::env::args().skip(1);
         while let Some(arg) = args.next() {
@@ -39,6 +42,16 @@ impl Options {
                         .parse()
                         .map_err(|_| "invalid level index")?
                 }
+                "--window" => {
+                    let size = args.next().ok_or("--window needs WIDTHxHEIGHT")?;
+                    let (w, h) = size.split_once('x').ok_or("--window needs WIDTHxHEIGHT")?;
+                    let w: u32 = w.parse().map_err(|_| "invalid window width")?;
+                    let h: u32 = h.parse().map_err(|_| "invalid window height")?;
+                    if !(320..=8192).contains(&w) || !(200..=8192).contains(&h) {
+                        return Err("window size must be between 320x200 and 8192x8192".into());
+                    }
+                    options.window = (w, h);
+                }
                 "--screenshot" => {
                     options.screenshot = Some(args.next().ok_or("--screenshot needs a BMP path")?)
                 }
@@ -55,7 +68,7 @@ impl Options {
                 }
                 _ => {
                     return Err(format!(
-                        "Unknown argument {arg}; use --smoke, --frames N, --scene NAME, --level N, --touch, --screenshot PATH.bmp"
+                        "Unknown argument {arg}; use --smoke, --frames N, --scene NAME, --level N, --touch, --window WxH, --screenshot PATH.bmp"
                     ));
                 }
             }
