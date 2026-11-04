@@ -10,7 +10,11 @@
     <key>CFBundleName</key><string>Dangerous Gabe</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleShortVersionString</key><string>1.2.0</string>
-    <key>CFBundleVersion</key><string>5</string>
+    <key>NSBluetoothAlwaysUsageDescription</key><string>Bluetooth is used only to connect wireless game controllers.</string>
+    <key>NSBluetoothPeripheralUsageDescription</key><string>Bluetooth is used only to connect wireless game controllers.</string>
+    <key>NSCameraUsageDescription</key><string>Dangerous Gabe never uses the camera; this string is required because a bundled library can reference camera APIs.</string>
+    <key>NSMicrophoneUsageDescription</key><string>Dangerous Gabe never records audio; this string is required because a bundled library can reference microphone APIs.</string>
+    <key>CFBundleVersion</key><string>8</string>
     <key>CFBundleIcons</key><dict><key>CFBundlePrimaryIcon</key><dict><key>CFBundleIconName</key><string>AppIcon</string></dict></dict>
     <key>CFBundleIcons~ipad</key><dict><key>CFBundlePrimaryIcon</key><dict><key>CFBundleIconName</key><string>AppIcon</string></dict></dict>
     <key>LSRequiresIPhoneOS</key><true/>

@@ -2,6 +2,21 @@
 set -euo pipefail
 gabe_root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$gabe_root"
+# App Store Connect requires the DT* build-environment keys Xcode normally adds.
+gabe_add_dt_keys() { # PLIST SDK
+    local plist="$1" sdk="$2" xv xb sv sb
+    xv="$(xcodebuild -version | sed -n 's/^Xcode //p' | awk -F. '{printf "%02d%d%d", $1, $2, $3}')"
+    xb="$(xcodebuild -version | sed -n 's/^Build version //p')"
+    sv="$(xcrun --sdk "$sdk" --show-sdk-version)"
+    sb="$(xcrun --sdk "$sdk" --show-sdk-build-version)"
+    for kv in "DTPlatformName:$sdk" "DTSDKName:$sdk$sv" "DTPlatformVersion:$sv" "DTSDKBuild:$sb" \
+              "DTPlatformBuild:$sb" "DTXcode:$xv" "DTXcodeBuild:$xb" "DTCompiler:com.apple.compilers.llvm.clang.1_0"; do
+        /usr/libexec/PlistBuddy -c "Delete :${kv%%:*}" "$plist" 2>/dev/null || true
+        /usr/libexec/PlistBuddy -c "Add :${kv%%:*} string ${kv#*:}" "$plist"
+    done
+    [ "$sdk" = macosx ] || { /usr/libexec/PlistBuddy -c "Delete :CFBundleSupportedPlatforms" "$plist" 2>/dev/null || true
+        /usr/libexec/PlistBuddy -c "Add :CFBundleSupportedPlatforms array" -c "Add :CFBundleSupportedPlatforms:0 string iPhoneOS" "$plist"; }
+}
 case "${1:-simulator}" in
     simulator) gabe_target=aarch64-apple-ios-sim; gabe_sdk=iphonesimulator ;;
     device) gabe_target=aarch64-apple-ios; gabe_sdk=iphoneos ;;
@@ -36,6 +51,7 @@ xcrun --sdk "$gabe_sdk" actool "$gabe_root/assets/icons/Assets.xcassets" \
 /usr/libexec/PlistBuddy -c 'Delete :CFBundleIcons~ipad' "$gabe_app/Info.plist"
 /usr/libexec/PlistBuddy -c "Merge $gabe_partial" "$gabe_app/Info.plist"
 test -s "$gabe_app/Assets.car"
+[ "$gabe_sdk" = iphoneos ] && gabe_add_dt_keys "$gabe_app/Info.plist" iphoneos
 plutil -lint "$gabe_app/Info.plist"
 if [ "$gabe_sdk" = iphonesimulator ]; then
     codesign --force --sign - "$gabe_app"
@@ -65,6 +81,13 @@ elif [ -n "${GABE_PROFILE:-}" ]; then
         gabe_bundle_id="$gabe_profile_bundle_id"
     fi
     cp "$GABE_PROFILE" "$gabe_app/embedded.mobileprovision"
+    if [ "${GABE_APPSTORE_IPA:-0}" = 1 ]; then
+        # The game uses no keychain; don't claim the profile's wildcard
+        # keychain group in the App Store signature (Xcode omits it too).
+        /usr/libexec/PlistBuddy -c 'Delete :keychain-access-groups' "$gabe_entitlements" 2>/dev/null \
+            || echo "Profile has no keychain-access-groups entitlement to drop."
+    fi
+    xattr -cr "$gabe_app"
     codesign --force --timestamp=none --sign "${GABE_SIGN_IDENTITY:-Apple Development}" \
         --entitlements "$gabe_entitlements" "$gabe_app"
     codesign --verify --strict "$gabe_app"

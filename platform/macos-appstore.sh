@@ -17,6 +17,21 @@
 set -euo pipefail
 gabe_root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$gabe_root"
+# App Store Connect requires the DT* build-environment keys Xcode normally adds.
+gabe_add_dt_keys() { # PLIST SDK
+    local plist="$1" sdk="$2" xv xb sv sb
+    xv="$(xcodebuild -version | sed -n 's/^Xcode //p' | awk -F. '{printf "%02d%d%d", $1, $2, $3}')"
+    xb="$(xcodebuild -version | sed -n 's/^Build version //p')"
+    sv="$(xcrun --sdk "$sdk" --show-sdk-version)"
+    sb="$(xcrun --sdk "$sdk" --show-sdk-build-version)"
+    for kv in "DTPlatformName:$sdk" "DTSDKName:$sdk$sv" "DTPlatformVersion:$sv" "DTSDKBuild:$sb" \
+              "DTPlatformBuild:$sb" "DTXcode:$xv" "DTXcodeBuild:$xb" "DTCompiler:com.apple.compilers.llvm.clang.1_0"; do
+        /usr/libexec/PlistBuddy -c "Delete :${kv%%:*}" "$plist" 2>/dev/null || true
+        /usr/libexec/PlistBuddy -c "Add :${kv%%:*} string ${kv#*:}" "$plist"
+    done
+    [ "$sdk" = macosx ] || { /usr/libexec/PlistBuddy -c "Delete :CFBundleSupportedPlatforms" "$plist" 2>/dev/null || true
+        /usr/libexec/PlistBuddy -c "Add :CFBundleSupportedPlatforms array" -c "Add :CFBundleSupportedPlatforms:0 string iPhoneOS" "$plist"; }
+}
 
 gabe_identity="${GABE_MAC_APP_IDENTITY:--}"
 gabe_targets=(aarch64-apple-darwin x86_64-apple-darwin)
@@ -53,13 +68,39 @@ cp "$gabe_root/platform/PrivacyInfo.xcprivacy" "$gabe_app/Contents/Resources/Pri
 if [ -n "${GABE_MAC_PROFILE:-}" ]; then
     cp "$GABE_MAC_PROFILE" "$gabe_app/Contents/embedded.provisionprofile"
 fi
+gabe_add_dt_keys "$gabe_plist" macosx
+/usr/libexec/PlistBuddy -c "Add :LSMinimumSystemVersion string 11.0" "$gabe_plist" 2>/dev/null || true
 plutil -lint "$gabe_plist" "$gabe_app/Contents/Resources/PrivacyInfo.xcprivacy"
 
 gabe_entitlements="$gabe_root/platform/macos/DangerousGabe.entitlements"
+if [ -n "${GABE_MAC_PROFILE:-}" ]; then
+    # Mac App Store: add the profile's application and team identifiers to the
+    # sandbox entitlements at signing time (team IDs are never committed).
+    gabe_profile_plist="$(mktemp -t gabe-mac-profile)"
+    gabe_signing_entitlements="$(mktemp -t gabe-mac-entitlements)"
+    trap 'rm -f "$gabe_profile_plist" "$gabe_signing_entitlements"' EXIT
+    security cms -D -i "$GABE_MAC_PROFILE" > "$gabe_profile_plist"
+    gabe_app_id="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:com.apple.application-identifier' "$gabe_profile_plist")"
+    gabe_team_id="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:com.apple.developer.team-identifier' "$gabe_profile_plist")"
+    gabe_bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$gabe_plist")"
+    if [ "$gabe_app_id" != "$gabe_team_id.$gabe_bundle_id" ]; then
+        echo "Profile App ID $gabe_app_id does not match $gabe_team_id.$gabe_bundle_id; set GABE_MAC_BUNDLE_ID." >&2
+        exit 1
+    fi
+    cp "$gabe_entitlements" "$gabe_signing_entitlements"
+    /usr/libexec/PlistBuddy -c "Add :com.apple.application-identifier string $gabe_app_id" \
+        -c "Add :com.apple.developer.team-identifier string $gabe_team_id" "$gabe_signing_entitlements"
+    gabe_entitlements="$gabe_signing_entitlements"
+fi
+# Downloaded/copied files carry com.apple.quarantine, which App Store processing rejects (91109).
+xattr -cr "$gabe_app"
 codesign --force --sign "$gabe_identity" --entitlements "$gabe_entitlements" \
     $( [ "$gabe_identity" = - ] || echo --timestamp ) "$gabe_app"
 codesign --verify --strict --verbose=1 "$gabe_app"
 codesign -d --entitlements - "$gabe_app" 2>/dev/null | grep -q 'com.apple.security.app-sandbox'
+if [ -n "${GABE_MAC_PROFILE:-}" ]; then
+    codesign -d --entitlements - "$gabe_app" 2>/dev/null | grep -q "$gabe_app_id"
+fi
 echo "Built $gabe_app (signed with: $gabe_identity)"
 
 if [ "${GABE_MAC_PKG:-1}" != 0 ]; then

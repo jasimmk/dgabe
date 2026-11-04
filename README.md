@@ -993,6 +993,42 @@ QA found an alpha channel in the eight iPhone and iPad captures. `simctl io scre
 - **Future captures:** the new [`platform/appstore-screenshot.sh`](platform/appstore-screenshot.sh) flattens every capture through a maximum-quality JPEG round trip with `sips` (no extra tools) and fails unless the result has no alpha and the exact size. Test runs printed `opaque 2880x1800` (Mac, stage 7), `opaque 2752x2064` (iPad Pro 13-inch, stage 8) and `opaque 2868x1320` (iPhone 17 Pro Max, stage 5).
 - **Verification:** `sips -g hasAlpha -g pixelWidth -g pixelHeight evidence/appstore/*.png` reports `hasAlpha: no` for all twelve: Mac 2880x1800 ×4, iPhone 2868x1320 ×4, iPad 2752x2064 ×4.
 
+### Distribution-signed App Store packages (2026-11-04)
+
+On 2026-11-04, on Apple Silicon macOS with rustc 1.99.1 and Xcode 26.2, the maintainer's team `4WDYEV5QQZ` signed both store packages. The signing identities came from the local keychain and the profiles from the gitignored `.profiles/`; none are committed.
+
+**Build number and script changes**
+- `node tools/release/version.mjs 1.2.0 6` set `CFBundleVersion` to **6** in both Apple plists; the version stays 1.2.0.
+- [`platform/macos-appstore.sh`](platform/macos-appstore.sh): with `GABE_MAC_PROFILE` set, it now adds the profile's `com.apple.application-identifier` and `com.apple.developer.team-identifier` to the sandbox entitlements at signing time. It fails if the profile App ID is not `TEAM.bundle-id`.
+- [`platform/ios-build.sh`](platform/ios-build.sh): with `GABE_APPSTORE_IPA=1`, it drops the profile's wildcard `keychain-access-groups` from the signature. The game uses no keychain.
+
+**Commands**
+
+```sh
+GABE_PROFILE=.profiles/<iOS App Store profile> GABE_SIGN_IDENTITY=<Apple Distribution SHA-1> \
+  GABE_APPSTORE_IPA=1 bash platform/ios-build.sh device
+GABE_MAC_BUNDLE_ID=dev.dangerousgabe.game.<TEAM> GABE_MAC_APP_IDENTITY=<Apple Distribution SHA-1> \
+  GABE_MAC_INSTALLER_IDENTITY=<3rd Party Mac Developer Installer SHA-1> \
+  GABE_MAC_PROFILE=.profiles/<Mac App Store profile> bash platform/macos-appstore.sh
+```
+
+**iOS/iPadOS:** `target/aarch64-apple-ios/release/bundle/DangerousGabe-appstore.ipa` (1.1 MB)
+- **Bundle:** `dev.dangerousgabe.game.4WDYEV5QQZ`, version 1.2.0 (6).
+- **Signature:** `codesign --verify --deep --strict` passed, with authority `Apple Distribution: Jasim Muhammed (4WDYEV5QQZ)`.
+- **Entitlements:** exactly `application-identifier` = `4WDYEV5QQZ.dev.dangerousgabe.game.4WDYEV5QQZ`, `com.apple.developer.team-identifier` = `4WDYEV5QQZ`, `get-task-allow` = false and `beta-reports-active` = true.
+- **Contents:** `embedded.mobileprovision` is byte-identical to the App Store profile. The IPA contains `Payload/DangerousGabe.app` with `PrivacyInfo.xcprivacy`.
+
+**macOS:** `target/universal-apple-darwin/release/appstore/DangerousGabe-1.2.0.pkg` (2.9 MB)
+- **App:** universal (`x86_64 arm64`), bundle `dev.dangerousgabe.game.4WDYEV5QQZ`, 1.2.0 (6).
+- **Signature:** `codesign --verify --deep --strict` passed, with authority Apple Distribution, team `4WDYEV5QQZ`.
+- **Entitlements:** exactly `com.apple.security.app-sandbox`, `com.apple.application-identifier` and `com.apple.developer.team-identifier` (both matching the profile).
+- **Contents:** `Contents/embedded.provisionprofile` is byte-identical to the Mac App Store profile.
+- **Package signature:** `pkgutil --check-signature` reports it signed by `3rd Party Mac Developer Installer: Jasim Muhammed (4WDYEV5QQZ)`, chained to Apple Root CA.
+
+**Launch limit:** the distribution-signed Mac app was killed at launch (`--smoke` exit 137, SIGKILL). macOS does not run Apple Distribution plus Mac App Store profile builds outside an App Store or TestFlight install. Sandboxed launch and container saving were verified with the ad hoc build of the same bundle and entitlements ([Mac App Store packaging](#mac-app-store-packaging-2026-11-03)). Running the store-signed build needs TestFlight.
+
+**Not done:** upload, App Store Connect validation and review.
+
 ### Release tooling validation
 
 **Mobile executable naming correction, 2026-10-17:** The released v1.1.0 unsigned device ZIP contained `DangerousGabe.app/dangerous-gabe`, matching its plist but missing the `DangerousGabe.app/DangerousGabe` path in the reported Sideloadly Apple Silicon chmod error. The mobile build now aligns the bundle basename, executable filename and plist. Apple allows a separately named executable through `CFBundleExecutable`; this is a compatibility correction for the observed lookup, not a claim that Apple requires matching names.
