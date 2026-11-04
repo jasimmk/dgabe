@@ -687,7 +687,7 @@ Website tokens inherit the palette below. Paper is body ink, Seed marks primary 
 
 Reusable primitives are the seed action (default, hover, keyboard focus), copper text link, numbered route entry (closed/open native details), framed screenshot (thumbnail/full-size dialog), section eyebrow and platform ledger. Controls have at least 44-pixel targets and a visible Current focus outline. The route has two columns on wide screens and one below 760 pixels; the hero stacks below 960 pixels. Mobile navigation wraps instead of hiding links. Images retain their aspect ratio, all text remains selectable, and reduced-motion preferences remove decorative motion. The site intentionally keeps the game's dark palette in both operating-system color modes.
 
-Build the static page with `node docs/html/build.mjs`; the generated entry is `docs/index.html`. CSS, JavaScript, image assets, templates and the builder stay under `docs/html/`. Preview from the repository root with `python3 -m http.server 4173 --directory docs` and open `http://localhost:4173/`. Publish the complete `docs/` directory, including its generated `.nojekyll` file. The former `docs/html/index.html` is removed by the builder so there is one landing-page entry.
+Build the static page with `node docs/html/build.mjs`; the generated entry is `docs/index.html`, plus the App Store privacy policy at `docs/privacy.html` (from `docs/html/privacy.template.html`, linked from both footers and listed in the sitemap when a site URL is set). CSS, JavaScript, image assets, templates and the builder stay under `docs/html/`. Preview from the repository root with `python3 -m http.server 4173 --directory docs` and open `http://localhost:4173/`. Publish the complete `docs/` directory, including its generated `.nojekyll` file. The former `docs/html/index.html` is removed by the builder so there is one landing-page entry.
 
 For GitHub Pages branch publishing, open the repository's **Settings → Pages → Build and deployment**, choose **Deploy from a branch**, select the default branch and **/docs**, then **Save**. Generate and include the static files in that branch before publishing; Pages does not run this Node builder automatically. See GitHub's official [publishing-source instructions](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site). These are setup instructions; no deployment has been performed here.
 
@@ -743,16 +743,20 @@ This is a **draft** for App Store Connect, entered by the maintainer. Nothing ha
 
 | Field | Draft |
 | --- | --- |
-| Name | Dangerous Gabe |
+| Name | Dangerous Gabe (kept by maintainer decision, 2026-11-03; see the name review risk below) |
 | Subtitle (30 max) | Grow a way through the storm |
 | Bundle ID | `dev.dangerousgabe.game` (macOS, iPhone and iPad; overridable at build time) |
 | Primary / secondary category | Games: Arcade / Games: Adventure |
 | Price | Free; no in-app purchases, no ads |
 | Platforms | macOS 11+ (universal), iPhone and iPad (iOS 15+, landscape) |
-| Support URL | **TODO (maintainer):** a page with a working contact method, e.g. a support section on `https://jasimmk.github.io/dgabe/` |
-| Marketing URL | Optional; suggested `https://jasimmk.github.io/dgabe/` |
-| Privacy policy URL | **TODO (maintainer):** publish the [privacy policy text](#privacy-policy-text) below and enter its URL |
-| Copyright | **TODO (maintainer):** `2026 <legal name or entity>` |
+| Support URL | `https://jasimmk.github.io/dgabe/` (contact through [GitHub issues](https://github.com/jasimmk/dgabe/issues)) |
+| Marketing URL | `https://jasimmk.github.io/dgabe/` |
+| Privacy policy URL | `https://jasimmk.github.io/dgabe/privacy.html`, generated from [docs/html/privacy.template.html](docs/html/privacy.template.html) |
+| Copyright | `2026 Jasim Muhammed` (confirmed by maintainer, 2026-11-04) |
+
+**Two things to check before submission:**
+- **The privacy page is not live yet.** `docs/privacy.html` reaches `https://jasimmk.github.io/dgabe/privacy.html` only after the maintainer commits and pushes `docs/`. Until then the URL returns 404, and App Review rejects a broken privacy policy link.
+- **Name review risk (QA note, kept by decision).** "Dangerous Gabe" echoes the title of the 1990 game *Dangerous Dave*. The maintainer kept the name on 2026-11-03. App Review or a rights holder could still question the similarity. The game's code, art, stages and story are original ([Original content](#original-content-and-a-useful-handoff)), and the name is not presented as affiliated with that game.
 
 **Promotional text (170 max):** Twelve storm-wrecked gardens. One gardener with a pulse tool and a little lift. Find each sunseed, carry it to the arch and wake the garden.
 
@@ -808,7 +812,7 @@ Yes/No questions, all answered **No**:
 
 #### Privacy policy text
 
-Ready to publish at the privacy policy URL; only the bracketed contact needs filling in:
+Published as [docs/privacy.html](docs/privacy.html), styled like the field guide and linked from its footer, once `docs/` is pushed:
 
 > **Dangerous Gabe privacy policy**
 >
@@ -821,7 +825,7 @@ Ready to publish at the privacy policy URL; only the bracketed contact needs fil
 >
 > If this policy changes, the updated version will be published at this address with a new date.
 >
-> Questions: [contact email or support page]. Last updated: [date].
+> Questions: visit https://jasimmk.github.io/dgabe/ or open an issue at https://github.com/jasimmk/dgabe/issues. Last updated: 2026-11-03.
 
 **Screenshots:** real runs of the current build, in [evidence/appstore/](evidence/appstore/), four per platform. All twelve are opaque PNGs with no alpha channel, which App Store Connect requires. Capture new ones with [`platform/appstore-screenshot.sh`](platform/appstore-screenshot.sh), which flattens every image and checks for no alpha and the exact size:
 
