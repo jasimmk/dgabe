@@ -106,7 +106,7 @@ impl App {
         }
         let now = Instant::now();
         let tick = Duration::from_secs_f64(1.0 / f64::from(simulation::STEP_HZ));
-        self.accumulator += if self.options.smoke {
+        self.accumulator += if self.options.smoke || self.options.record.is_some() {
             tick
         } else {
             now.duration_since(self.previous)
@@ -124,6 +124,17 @@ impl App {
                     ..Input::default()
                 };
             }
+            if self.options.autoplay {
+                let t = self.world.tick;
+                input = Input {
+                    confirm: self.world.mode != Mode::Playing && self.frames % 30 == 0,
+                    right: t % 240 < 200,
+                    jump: t % 38 < 6,
+                    fire: t % 22 < 3,
+                    thrust: t % 150 > 95 && t % 150 < 125,
+                    ..Input::default()
+                };
+            }
             self.world.step(input);
             if let Some(audio) = &mut self.audio {
                 if let Err(error) = audio.observe(&self.world, input) {
@@ -133,6 +144,15 @@ impl App {
             }
         }
         presentation::paint(&mut self.canvas, &self.world, self.controls.touch_visible)?;
+        if let Some(dir) = &self.options.record {
+            if self.frames % 2 == 0 {
+                let path = format!("{dir}/frame_{:05}.bmp", self.frames / 2);
+                self.canvas
+                    .read_pixels(None)
+                    .and_then(|surface| surface.save_bmp(&path))
+                    .map_err(|error| error.to_string())?;
+            }
+        }
         self.frames = self.frames.saturating_add(1);
         let done = self
             .options
