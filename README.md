@@ -1027,7 +1027,9 @@ GABE_MAC_BUNDLE_ID=dev.dangerousgabe.game.<TEAM> GABE_MAC_APP_IDENTITY=<Apple Di
 
 **Launch limit:** the distribution-signed Mac app was killed at launch (`--smoke` exit 137, SIGKILL). macOS does not run Apple Distribution plus Mac App Store profile builds outside an App Store or TestFlight install. Sandboxed launch and container saving were verified with the ad hoc build of the same bundle and entitlements ([Mac App Store packaging](#mac-app-store-packaging-2026-11-03)). Running the store-signed build needs TestFlight.
 
-**Not done:** upload, App Store Connect validation and review.
+**Upload fixes (builds 7 and 8, 2026-11-04):** Transporter uploads of build 6 failed processing. macOS (91109): `embedded.provisionprofile` carried `com.apple.quarantine`, so `macos-appstore.sh` now runs `xattr -cr` on the app before signing. iOS (90507, 90534): the plist lacked Xcode's `DT*` build-environment keys, so both scripts now add `DTPlatformName`, `DTSDKName`, `DTXcode` and related keys from the active Xcode. iOS build 7 then failed for missing purpose strings (`NSCameraUsageDescription`, `NSBluetoothAlwaysUsageDescription`) referenced by SDL; `platform/Info.plist` now declares camera, microphone and Bluetooth strings stating the game does not use them (Bluetooth: wireless controllers only). Accepted builds: macOS 1.2.0 (7) and iOS 1.2.0 (8). `rebuild-appstore.command` and `rebuild-ios.command` rebuild them from Finder.
+
+**Not done:** App Review submission.
 
 ### Release tooling validation
 
