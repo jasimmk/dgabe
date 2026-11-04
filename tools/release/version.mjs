@@ -50,7 +50,8 @@ export async function syncVersion(root, version, build) {
   stableVersion(version);
   buildNumber(build);
   root = resolve(root);
-  const paths = ['Cargo.toml', 'Cargo.lock', 'platform/Info.plist'].map(path => resolve(root, path));
+  // platform/Info.plist is the iOS/iPadOS bundle, platform/macos/Info.plist the Mac App Store bundle.
+  const paths = ['Cargo.toml', 'Cargo.lock', 'platform/Info.plist', 'platform/macos/Info.plist'].map(path => resolve(root, path));
   const original = await Promise.all(paths.map(path => readFile(path, 'utf8')));
   packageVersion(original[0]);
   const cargo = replaceOne(original[0], /(^\[package\][ \t]*\r?\n)([\s\S]*?)(?=^\[|$(?![\s\S]))/gm,
@@ -59,14 +60,16 @@ export async function syncVersion(root, version, build) {
   const lock = replaceOne(original[1], /^\[\[package\]\][ \t]*\r?\n(?:(?!^\[\[package\]\])[\s\S])*?^name\s*=\s*"dangerous-gabe"[ \t]*\r?\n(?:(?!^\[\[package\]\])[\s\S])*?(?=^\[\[package\]\]|$(?![\s\S]))/gm,
     section => replaceOne(section, /^(version\s*=\s*")[^"]+("[ \t]*)$/gm,
       (_line, start, end) => `${start}${version}${end}`, 'lock package version'), 'dangerous-gabe lock package');
-  let plist = original[2];
-  for (const [key, value] of [['CFBundleShortVersionString', version], ['CFBundleVersion', build]]) {
-    plist = replaceOne(plist, new RegExp(`(<key>${key}</key>\\s*<string>)[^<]*(</string>)`, 'g'),
-      (_all, start, end) => `${start}${value}${end}`, key);
-  }
+  const plists = original.slice(2).map(plist => {
+    for (const [key, value] of [['CFBundleShortVersionString', version], ['CFBundleVersion', build]]) {
+      plist = replaceOne(plist, new RegExp(`(<key>${key}</key>\\s*<string>)[^<]*(</string>)`, 'g'),
+        (_all, start, end) => `${start}${value}${end}`, key);
+    }
+    return plist;
+  });
   const temporary = paths.map(path => `${path}.release-${process.pid}-${Date.now()}`);
   try {
-    await Promise.all(temporary.map((path, index) => writeFile(path, [cargo, lock, plist][index], { flag: 'wx' })));
+    await Promise.all(temporary.map((path, index) => writeFile(path, [cargo, lock, ...plists][index], { flag: 'wx' })));
     for (let index = 0; index < paths.length; index += 1) await rename(temporary[index], paths[index]);
   } finally {
     await Promise.all(temporary.map(path => rm(path, { force: true })));

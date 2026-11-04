@@ -170,14 +170,20 @@ impl App {
 fn create_app() -> Result<App, String> {
     let options = Options::parse()?;
     let sdl = sdl3::init().map_err(|error| error.to_string())?;
+    // iOS/iPadOS: SDL's view controller allows every orientation for a
+    // resizable window unless this hint restricts it, and hides the status
+    // bar only for borderless or fullscreen windows.
+    #[cfg(target_os = "ios")]
+    if !sdl3::hint::set("SDL_IOS_ORIENTATIONS", "LandscapeLeft LandscapeRight") {
+        return Err("SDL rejected the landscape orientation hint".into());
+    }
     let video = sdl.video().map_err(|error| error.to_string())?;
-    let window = video
-        .window("Dangerous Gabe: The Storm Garden", 960, 640)
-        .resizable()
-        .high_pixel_density()
-        .position_centered()
-        .build()
-        .map_err(|error| error.to_string())?;
+    let (width, height) = options.window;
+    let mut builder = video.window("Dangerous Gabe: The Storm Garden", width, height);
+    builder.resizable().high_pixel_density().position_centered();
+    #[cfg(target_os = "ios")]
+    builder.borderless();
+    let window = builder.build().map_err(|error| error.to_string())?;
     let mut canvas = window.into_canvas();
     #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
     if let Err(error) = app_icon::install(canvas.window_mut(), video.current_video_driver()) {
@@ -190,6 +196,12 @@ fn create_app() -> Result<App, String> {
             sdl3::sys::render::SDL_LOGICAL_PRESENTATION_LETTERBOX,
         )
         .map_err(|error| error.to_string())?;
+    if options.smoke {
+        match platform::data_dir().and_then(|dir| platform::probe_data_dir(&dir).map(|()| dir)) {
+            Ok(dir) => eprintln!("Save directory writable: {}", dir.display()),
+            Err(error) => return Err(format!("save directory unusable: {error}")),
+        }
+    }
     let mut world = World::new();
     if !world.load_level(options.level) {
         return Err("level index outside campaign".into());

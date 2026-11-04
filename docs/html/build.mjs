@@ -69,9 +69,13 @@ for (const image of ['title.png', 'gameplay.png', 'touch-pause.png', 'new-stage-
 html = html.replace('href="style.css"', 'href="html/style.css"').replace('src="app.js"', 'src="html/app.js"')
   .replace(/(href|src)="assets\//g, '$1="html/assets/').replaceAll('srcset="assets/', 'srcset="html/assets/').replaceAll(', assets/', ', html/assets/');
 await writeFile(path.join(docs, 'index.html'), html);
+let privacy = await readFile(path.join(here, 'privacy.template.html'), 'utf8');
+for (const [key, value] of Object.entries({ CANONICAL: site ? `<link rel="canonical" href="${escape(site)}/privacy.html">` : '', REPO_URL: repository || './#build-notes', REPO_LABEL: repository ? 'View repository' : 'Read build requirements' })) privacy = privacy.replaceAll(`{{${key}}}`, value);
+privacy = privacy.replace('href="style.css"', 'href="html/style.css"').replace('src="app.js"', 'src="html/app.js"').replace(/(href|src)="assets\//g, '$1="html/assets/');
+await writeFile(path.join(docs, 'privacy.html'), privacy);
 await writeFile(path.join(docs, '.nojekyll'), '');
 await writeFile(path.join(docs, 'robots.txt'), `User-agent: *\nAllow: /\n${site ? `Sitemap: ${site}/sitemap.xml\n` : ''}`);
-if (site) await writeFile(path.join(docs, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${escape(site)}/</loc></url></urlset>\n`);
+if (site) await writeFile(path.join(docs, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${escape(site)}/</loc></url><url><loc>${escape(site)}/privacy.html</loc></url></urlset>\n`);
 else await rm(path.join(docs, 'sitemap.xml'), { force: true });
 for (const obsolete of ['index.html', 'robots.txt', 'sitemap.xml']) await rm(path.join(here, obsolete), { force: true });
 await writeFile(path.join(here, 'assets/wordmark.svg'), `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 53 19"><g fill="#F2EDD6">${lettering('DANGEROUS', '#F2EDD6').replace('<svg ', '<svg y="0" width="53" height="7" ')}</g><g>${lettering('GABE', '#C5EF8A').replace('<svg ', '<svg y="10" width="53" height="9" ')}</g></svg>`);

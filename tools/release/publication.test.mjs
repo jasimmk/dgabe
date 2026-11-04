@@ -24,11 +24,12 @@ test('real local release prepares exactly three metadata files before tagging, w
   git('checkout', '-b', 'main');
   git('config', 'user.name', 'Fixture release');
   git('config', 'user.email', 'fixture@example.invalid');
-  await mkdir(join(cwd, 'platform'));
+  await mkdir(join(cwd, 'platform/macos'), { recursive: true });
   await writeFile(join(cwd, '.gitignore'), 'dist/\nrelease-plan.json\n');
   await writeFile(join(cwd, 'Cargo.toml'), '[package]\nname = "dangerous-gabe"\nversion = "1.2.3"\n');
   await writeFile(join(cwd, 'Cargo.lock'), 'version = 4\n\n[[package]]\nname = "dangerous-gabe"\nversion = "1.2.3"\n');
   await writeFile(join(cwd, 'platform/Info.plist'), '<plist><dict><key>CFBundleShortVersionString</key><string>1.2.3</string><key>CFBundleVersion</key><string>1</string></dict></plist>');
+  await writeFile(join(cwd, 'platform/macos/Info.plist'), '<plist><dict><key>CFBundleShortVersionString</key><string>1.2.3</string><key>CFBundleVersion</key><string>1</string></dict></plist>');
   git('add', '.'); git('commit', '-m', 'chore: fixture baseline'); git('tag', 'v1.2.3');
   git('commit', '--allow-empty', '-m', 'fix: release fixture'); git('push', '--tags', 'origin', 'main');
   const source = git('rev-parse', 'HEAD');
@@ -38,7 +39,7 @@ test('real local release prepares exactly three metadata files before tagging, w
   const options = { ci: false, repositoryUrl: remote, branches: ['main'], plugins: [
     [fileURLToPath(new URL('./analyzer.mjs', import.meta.url)), guard],
     [fileURLToPath(import.meta.resolve('@semantic-release/git')), {
-      assets: ['Cargo.toml', 'Cargo.lock', 'platform/Info.plist'],
+      assets: ['Cargo.toml', 'Cargo.lock', 'platform/Info.plist', 'platform/macos/Info.plist'],
       message: 'chore(release): ${nextRelease.version} [skip ci]',
     }],
   ] };
@@ -63,7 +64,7 @@ test('real local release prepares exactly three metadata files before tagging, w
   assert.equal(git('rev-parse', 'HEAD^'), source);
   assert.equal(git('log', '-1', '--format=%s'), 'chore(release): 1.2.4 [skip ci]');
   assert.deepEqual(git('diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD').split('\n').sort(),
-    ['Cargo.lock', 'Cargo.toml', 'platform/Info.plist']);
+    ['Cargo.lock', 'Cargo.toml', 'platform/Info.plist', 'platform/macos/Info.plist']);
   assert.match(await readFile(join(cwd, 'platform/Info.plist'), 'utf8'), /<string>42<\/string>/);
   assert.equal(JSON.parse(await readFile(join(cwd, 'dist/release-manifest.json'), 'utf8')).sourceCommit, source);
 });

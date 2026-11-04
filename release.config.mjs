@@ -22,7 +22,7 @@ export function releaseOptions(env = process.env) {
       }],
       '@semantic-release/release-notes-generator',
       ['@semantic-release/git', {
-        assets: ['Cargo.toml', 'Cargo.lock', 'platform/Info.plist'],
+        assets: ['Cargo.toml', 'Cargo.lock', 'platform/Info.plist', 'platform/macos/Info.plist'],
         message: 'chore(release): ${nextRelease.version} [skip ci]',
       }],
       ['@semantic-release/github', {

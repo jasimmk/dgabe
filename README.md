@@ -17,6 +17,7 @@ An independent platform adventure written in Rust with SDL3. Explore a twelve-st
 - [Release all platforms](#release-all-platforms)
 - [Architecture](#architecture)
 - [Visual design](#visual-design)
+- [App Store listing draft](#app-store-listing-draft)
 - [Roadmap](#roadmap)
 - [Validation appendix](#validation-appendix)
 - [Documentation layout](#documentation-layout)
@@ -284,6 +285,46 @@ cargo build --locked --release --target aarch64-apple-darwin
 
 The desktop build script produces a host executable. The [release workflow](#release-all-platforms) packages only Apple Silicon macOS app bundles with ad hoc signatures. Intel macOS releases are excluded because the required hosted runner is unavailable for this project. Developer ID signing and notarization remain separate work.
 
+#### Mac App Store package
+
+[`platform/macos-appstore.sh`](platform/macos-appstore.sh) builds the Mac App Store shape without an Xcode project:
+
+```sh
+rustup target add aarch64-apple-darwin x86_64-apple-darwin
+bash platform/macos-appstore.sh
+```
+
+What the script does:
+- Builds both darwin targets and merges them with `lipo` into one universal (arm64 + x86_64) executable.
+- Assembles `target/universal-apple-darwin/release/appstore/DangerousGabe.app`:
+  - [Info.plist](platform/macos/Info.plist) with category `public.app-category.arcade-games`, `ITSAppUsesNonExemptEncryption` = NO, minimum macOS 11.0, and the version taken from Cargo.toml;
+  - the existing `app.icns`;
+  - the [privacy manifest](platform/PrivacyInfo.xcprivacy).
+- Signs the app with the [App Sandbox entitlements](platform/macos/DangerousGabe.entitlements): sandbox only, with no network or user-file access.
+- Writes `DangerousGabe-VERSION.pkg` with `productbuild`.
+
+The privacy manifest declares no tracking and no collected data. It lists the required-reason APIs that vendored SDL3 uses:
+
+| API category | Reason code | SDL3 use |
+| --- | --- | --- |
+| System boot time | 35F9.1 | Frame timers |
+| UserDefaults | CA92.1 | The app's own defaults in Cocoa/UIKit event setup |
+| File timestamp | C617.1 | Files inside the container |
+
+Signing is supplied through environment variables, and no identity or profile is stored in the repository:
+
+| Variable | Use |
+| --- | --- |
+| `GABE_MAC_APP_IDENTITY` | App signing identity. Default `-` (ad hoc); for the store, an Apple Distribution identity |
+| `GABE_MAC_INSTALLER_IDENTITY` | Installer signing identity for the `.pkg`. Unset gives an unsigned package |
+| `GABE_MAC_PROFILE` | Mac App Store provisioning profile, copied to `Contents/embedded.provisionprofile` |
+| `GABE_MAC_BUNDLE_ID` | Overrides the bundle identifier (default `dev.dangerousgabe.game`) |
+| `GABE_MAC_PKG=0` | Skips the `.pkg` step |
+
+Uploading and App Store Connect setup are not part of the script.
+
+The shell resolves its writable data directory through SDL's preference path (`platform::data_dir`). Inside the sandbox this is `~/Library/Containers/dev.dangerousgabe.game/Data/Library/Application Support/dev.dangerousgabe/Dangerous Gabe/`. `--smoke` writes, reads back and removes a probe file there and fails if it cannot. The game does not persist progress yet ([roadmap](#roadmap)); the probe establishes that saving will work under the sandbox.
+
 The project's Cargo configuration defaults `MACOSX_DEPLOYMENT_TARGET` to **11.0**, the existing Rust arm64 floor, before compiling Rust and vendored SDL3. An explicit environment override is respected. Build on macOS with Xcode selected so the build script can locate its compiler-rt archive. The deployment floor is not evidence of execution on macOS 11; recorded native runs used a newer system.
 
 ### Windows x64
@@ -346,6 +387,18 @@ xcrun simctl launch "$GABE_SIMULATOR_ID" dev.dangerousgabe.game
 
 Skip the boot command for an already booted simulator. Choose an explicit UDID when several simulators are running. For a bounded run, append `--smoke` to the launch command; use `simctl launch --console` to see its result. The iPhone and iPad use the same simulator bundle.
 
+#### App Store shape
+
+The same script produces the App Store layout.
+- **Bundle contents:** the [privacy manifest](platform/PrivacyInfo.xcprivacy), shared with macOS, is copied into every bundle. [Info.plist](platform/Info.plist) declares:
+  - `ITSAppUsesNonExemptEncryption` = NO;
+  - category `public.app-category.arcade-games`;
+  - a hidden status bar;
+  - `UIRequiresFullScreen` = YES, because App Store validation rejects iPad apps that are landscape-only but allow multitasking.
+- **Icons and launch screen:** the asset catalog already holds every iPhone and iPad icon size plus the 1024-pixel marketing icon; `UILaunchScreen` provides the launch screen.
+- **App Store IPA:** add `GABE_APPSTORE_IPA=1` to the signed device build, with `GABE_PROFILE` set to an App Store distribution profile and `GABE_SIGN_IDENTITY` to an Apple Distribution identity. The script then also writes `DangerousGabe-appstore.ipa`. It refuses development profiles, which have `get-task-allow` set.
+- **Credentials:** the repository holds no team, identity or profile. Upload stays a separate manual step.
+
 #### Install and test on a physical iPhone or iPad
 
 Device installation needs, on the building Mac:
@@ -391,11 +444,12 @@ A Windows MSVC cross build needs the MSVC linker and Windows SDK. A Windows GNU 
 
 | Target | Recorded evidence | Remaining limit |
 | --- | --- | --- |
-| macOS Apple Silicon | Current native CI equivalents: format/Clippy/release build, 33 library/integration cases and the twelve-stage route runner; separate Dawnseed Crown capture | Hosted CI, distribution packaging and notarization remain unverified; prepared fixtures are separate from earned gameplay |
+| macOS Apple Silicon | Current native CI equivalents: format/Clippy/release build, 33 library/integration cases and the twelve-stage route runner; separate Dawnseed Crown capture | Hosted CI and notarization remain unverified; prepared fixtures are separate from earned gameplay |
+| macOS App Store package (universal) | 2026-11-03: universal sandboxed `.app` plus unsigned `.pkg` built; ad hoc signed with sandbox entitlements; arm64 and Rosetta x86_64 smoke runs saved into the container; launched window captured in play ([Mac App Store packaging](#mac-app-store-packaging-2026-11-03)) | Not signed with distribution identities, not uploaded and not reviewed; Intel slice run only under Rosetta 2 |
 | Windows x64 | Build script and native CI job supplied | No recorded build or run |
 | Linux | Host build script, dependency instructions and native CI job supplied | No recorded build or run |
-| iPhone simulator, iOS 26.2 | Initial integration: iPhone 17 Pro, 180 rendered frames and actual game screenshot | Apple build/run was not repeated after the earlier six-stage difficulty revision or this expansion |
-| iPad simulator, iOS 26.2 | Initial integration: iPad Pro 13-inch (M5), 180 frames and actual pause-screen screenshot | Apple build/run was not repeated after the difficulty revision |
+| iPhone simulator, iOS 26.2 | 2026-11-03, current twelve-stage build with App Store packaging: iPhone 17 Pro, `--smoke` 180 frames and save probe in the app container; landscape title and play captures ([iOS App Store packaging](#ios-app-store-packaging-2026-11-03)) | No physical device run |
+| iPad simulator, iOS 26.2 | 2026-11-03, same build: iPad Pro 13-inch (M5), `--smoke` and save probe passed; landscape title and play captures | Status bar fixed later the same day (borderless iOS window); a portrait-held iPad on iPadOS 26 still letterboxes the landscape game ([App Store assets and iOS fixes](#app-store-assets-and-ios-fixes-2026-11-03)) |
 | iPhone/iPad device arm64 | Initial release executable and unsigned universal-family app bundle built | No provisioning, signed install or physical-device run |
 
 The initial simulator runs logged UIKit appearance-transition warnings and then exited successfully. [Historical platform evidence](#historical-platform-validation) preserves those logs and historical captures; [campaign validation](#campaign-validation) covers the revised campaign. The [CI workflow](.github/workflows/build.yml) defines the [CI matrix](#ci-matrix); it has not been dispatched remotely. A dummy-driver run does not validate a real display or audio device.
@@ -633,7 +687,7 @@ Website tokens inherit the palette below. Paper is body ink, Seed marks primary 
 
 Reusable primitives are the seed action (default, hover, keyboard focus), copper text link, numbered route entry (closed/open native details), framed screenshot (thumbnail/full-size dialog), section eyebrow and platform ledger. Controls have at least 44-pixel targets and a visible Current focus outline. The route has two columns on wide screens and one below 760 pixels; the hero stacks below 960 pixels. Mobile navigation wraps instead of hiding links. Images retain their aspect ratio, all text remains selectable, and reduced-motion preferences remove decorative motion. The site intentionally keeps the game's dark palette in both operating-system color modes.
 
-Build the static page with `node docs/html/build.mjs`; the generated entry is `docs/index.html`. CSS, JavaScript, image assets, templates and the builder stay under `docs/html/`. Preview from the repository root with `python3 -m http.server 4173 --directory docs` and open `http://localhost:4173/`. Publish the complete `docs/` directory, including its generated `.nojekyll` file. The former `docs/html/index.html` is removed by the builder so there is one landing-page entry.
+Build the static page with `node docs/html/build.mjs`; the generated entry is `docs/index.html`, plus the App Store privacy policy at `docs/privacy.html` (from `docs/html/privacy.template.html`, linked from both footers and listed in the sitemap when a site URL is set). CSS, JavaScript, image assets, templates and the builder stay under `docs/html/`. Preview from the repository root with `python3 -m http.server 4173 --directory docs` and open `http://localhost:4173/`. Publish the complete `docs/` directory, including its generated `.nojekyll` file. The former `docs/html/index.html` is removed by the builder so there is one landing-page entry.
 
 For GitHub Pages branch publishing, open the repository's **Settings → Pages → Build and deployment**, choose **Deploy from a branch**, select the default branch and **/docs**, then **Save**. Generate and include the static files in that branch before publishing; Pages does not run this Node builder automatically. See GitHub's official [publishing-source instructions](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site). These are setup instructions; no deployment has been performed here.
 
@@ -683,6 +737,114 @@ Implemented interface copy includes DANGEROUS GABE / THE STORM GARDEN, ENTER THE
 
 </details>
 
+## App Store listing draft
+
+This is a **draft** for App Store Connect, entered by the maintainer. Nothing has been uploaded or submitted. Rows marked **TODO (maintainer)** need the maintainer's own details before submission.
+
+| Field | Draft |
+| --- | --- |
+| Name | Dangerous Gabe (kept by maintainer decision, 2026-11-03; see the name review risk below) |
+| Subtitle (30 max) | Grow a way through the storm |
+| Bundle ID | `dev.dangerousgabe.game` (macOS, iPhone and iPad; overridable at build time) |
+| Primary / secondary category | Games: Arcade / Games: Adventure |
+| Price | Free; no in-app purchases, no ads |
+| Platforms | macOS 11+ (universal), iPhone and iPad (iOS 15+, landscape) |
+| Support URL | `https://jasimmk.github.io/dgabe/` (contact through [GitHub issues](https://github.com/jasimmk/dgabe/issues)) |
+| Marketing URL | `https://jasimmk.github.io/dgabe/` |
+| Privacy policy URL | `https://jasimmk.github.io/dgabe/privacy.html`, generated from [docs/html/privacy.template.html](docs/html/privacy.template.html) |
+| Copyright | `2026 Jasim Muhammed` (confirmed by maintainer, 2026-11-04) |
+
+**Two things to check before submission:**
+- **The privacy page is not live yet.** `docs/privacy.html` reaches `https://jasimmk.github.io/dgabe/privacy.html` only after the maintainer commits and pushes `docs/`. Until then the URL returns 404, and App Review rejects a broken privacy policy link.
+- **Name review risk (QA note, kept by decision).** "Dangerous Gabe" echoes the title of the 1990 game *Dangerous Dave*. The maintainer kept the name on 2026-11-03. App Review or a rights holder could still question the similarity. The game's code, art, stages and story are original ([Original content](#original-content-and-a-useful-handoff)), and the name is not presented as affiliated with that game.
+
+**Promotional text (170 max):** Twelve storm-wrecked gardens. One gardener with a pulse tool and a little lift. Find each sunseed, carry it to the arch and wake the garden.
+
+**Description:**
+
+> Storms have torn through the floating gardens above the clouds. Gabe, a gardener with a pulse tool and a short-lived flight pack, sets out to bring them back, one arch at a time.
+>
+> Dangerous Gabe is a crisp pixel-art platform adventure across twelve hand-built stages. Each garden hides a sunseed: find it, then carry it to the exit arch to restore the garden and open the way on.
+>
+> • Twelve stages, from the Rainwake Nursery to the Dawnseed Crown
+> • Tight jumping, timed flight and careful use of your limited charge
+> • Pulse shots against storm-touched creatures and drones
+> • Keyboard controls on Mac, on-screen touch controls on iPhone and iPad
+> • Original art, lettering and synthesized sound
+> • No ads, no accounts, no tracking. Plays fully offline
+
+**Keywords (100 max):** `platformer,retro,pixel,arcade,jetpack,garden,storm,adventure,jump,offline,indie,8-bit`
+
+**Age rating answers** (App Store Connect questionnaire; each content category is answered None, Infrequent or Frequent):
+
+| Category | Answer | Reason |
+| --- | --- | --- |
+| Cartoon or Fantasy Violence | **Infrequent** | Pulse shots make storm creatures and drones disappear, with no blood, gore or death animation. Combat is secondary to finding seeds and reaching arches, and many enemies can be jumped or avoided |
+| Guns or Other Weapons | **Infrequent** | Assessed explicitly: the pulse tool is a pickup the player aims and fires at enemies, and its sprite reads as a stylised handheld blaster. It is not a realistic firearm and there is no other weapon. Answering None is arguable for a fantasy gardening tool; Infrequent is the conservative answer, so the depiction is disclosed |
+| Realistic Violence | None | |
+| Prolonged Graphic or Sadistic Realistic Violence | None | |
+| Profanity or Crude Humor | None | |
+| Horror/Fear Themes | None | Storms and darkened gardens, no horror imagery |
+| Mature or Suggestive Themes | None | |
+| Sexual Content or Nudity | None | |
+| Graphic Sexual Content and Nudity | None | |
+| Alcohol, Tobacco, or Drug Use or References | None | |
+| Medical or Treatment Information | None | |
+| Simulated Gambling | None | |
+
+Yes/No questions, all answered **No**:
+- unrestricted web access;
+- user-generated content;
+- messaging or chat;
+- advertising;
+- gambling;
+- loot boxes;
+- contests.
+
+**Expected rating: 9+.** Infrequent, mild cartoon or fantasy violence and a stylised fantasy weapon, with every other category None, fall in the 9+ band. App Store Connect computes the final rating from these answers. If it shows a different age, record that value here; don't change the answers to fit.
+
+**App Privacy:**
+- **Data Not Collected:** no tracking, no third-party SDKs and no network access.
+- **Sandbox:** the Mac build is sandboxed with no network entitlement.
+- **Privacy manifest:** [`platform/PrivacyInfo.xcprivacy`](platform/PrivacyInfo.xcprivacy) declares only the required-reason APIs used by SDL3.
+
+**Export compliance:** `ITSAppUsesNonExemptEncryption` = NO; the app uses no encryption.
+
+#### Privacy policy text
+
+Published as [docs/privacy.html](docs/privacy.html), styled like the field guide and linked from its footer, once `docs/` is pushed:
+
+> **Dangerous Gabe privacy policy**
+>
+> Dangerous Gabe does not collect, store or share any personal data.
+>
+> - The game makes no network connections. It contains no analytics, advertising, tracking or third-party services, and it has no accounts.
+> - Everything the game keeps, such as game files in its own app storage, stays on your device. It is never sent to us or anyone else, and deleting the app removes it.
+> - The game does not access your contacts, photos, location, microphone, camera or other personal information.
+> - Because no data is collected, there is nothing for us to disclose, sell or delete on request.
+>
+> If this policy changes, the updated version will be published at this address with a new date.
+>
+> Questions: visit https://jasimmk.github.io/dgabe/ or open an issue at https://github.com/jasimmk/dgabe/issues. Last updated: 2026-11-03.
+
+**Screenshots:** real runs of the current build, in [evidence/appstore/](evidence/appstore/), four per platform. All twelve are opaque PNGs with no alpha channel, which App Store Connect requires. Capture new ones with [`platform/appstore-screenshot.sh`](platform/appstore-screenshot.sh), which flattens every image and checks for no alpha and the exact size:
+
+```sh
+bash platform/appstore-screenshot.sh mac evidence/appstore/mac-3-play-stage07.png 2880x1800 --scene play --level 6
+bash platform/appstore-screenshot.sh sim IPAD_UDID evidence/appstore/ipad13-3-play-stage08.png 90 2752x2064 --scene play --level 7
+bash platform/appstore-screenshot.sh sim IPHONE_PRO_MAX_UDID evidence/appstore/iphone69-3-play-stage05.png 270 2868x1320 --scene play --level 4
+```
+
+The `sim` mode expects the simulator build to be installed. For the iPad, turn the simulator to landscape first (*Device > Rotate Right*).
+
+| Platform | Size | Files |
+| --- | --- | --- |
+| Mac | 2880x1800 | `mac-1-title-stage01`, `mac-2-play-stage03`, `mac-3-play-stage07`, `mac-4-play-stage11` |
+| iPhone 6.9" | 2868x1320 (landscape) | `iphone69-1-title-stage01`, `iphone69-2-play-stage02`, `iphone69-3-play-stage05`, `iphone69-4-play-stage09` |
+| iPad 13" | 2752x2064 (landscape) | `ipad13-1-title-stage01`, `ipad13-2-play-stage04`, `ipad13-3-play-stage08`, `ipad13-4-play-stage12` |
+
+**Note on the stage captures:** they show each stage's entrance, opened with `--scene play --level N`. They are real renders, not earned progress, and the entrances look alike. Mid-stage captures would market the variety better.
+
 ## Roadmap
 
 Status recorded **2026-10-17**. The twelve-stage expansion, tighter opposition and ordinary-input verification are complete. Native build/check results belong to this revision; Apple observations still belong to the initial six-stage integration.
@@ -731,6 +893,105 @@ env PATH=/opt/homebrew/opt/rustup/bin:$PATH cargo +stable test --locked --lib --
 That is **33 library/integration cases plus the campaign executable**, all from one test invocation. The custom runner's stdout remained visible and its process status was handled directly by Cargo. Each CLI child used its own dummy display/audio environment, unique temporary directory and a 20-second watchdog with kill/reap cleanup. The CLI suite therefore passed locally with vendored SDL3 as well as its owner's earlier system-SDL run; it did not exercise the physical display or audio device.
 
 No checks were suppressed, tests skipped or product source changed to pass these gates. The local workspace is not initialized as a Git repository; no Git initialization, commit, push or hosted workflow dispatch occurred. Windows/Linux jobs and new iOS package builds were not executed in this task. Earlier physical/simulator observations below are preserved as historical evidence, not revalidated by the dummy-driver tests.
+
+### Mac App Store packaging (2026-11-03)
+
+On 2026-11-03 the following ran on **Apple Silicon macOS** with **rustc 1.99.1** and **Xcode 26.2 (17C52)**. The revision was Git `82d4415` plus the uncommitted Platforms changes listed below.
+
+```sh
+bash platform/macos-appstore.sh
+target/universal-apple-darwin/release/appstore/DangerousGabe.app/Contents/MacOS/DangerousGabe --smoke
+arch -x86_64 target/universal-apple-darwin/release/appstore/DangerousGabe.app/Contents/MacOS/DangerousGabe --smoke
+open -n target/universal-apple-darwin/release/appstore/DangerousGabe.app
+```
+
+| Check | Observed result |
+| --- | --- |
+| Build | Both darwin targets built; `lipo -archs` reports `x86_64 arm64` |
+| Bundle files | `plutil -lint` passed for Info.plist, entitlements and the privacy manifest |
+| Signature | `codesign --verify --strict` passed (ad hoc); the embedded entitlements contain `com.apple.security.app-sandbox` |
+| Installer | `productbuild` wrote `DangerousGabe-1.2.0.pkg` (minimum OS 11.0, unsigned) |
+| Sandboxed arm64 smoke | Printed `Save directory writable: ~/Library/Containers/dev.dangerousgabe.game/Data/Library/Application Support/dev.dangerousgabe/Dangerous Gabe/`, then `SDL3 frames=180 mode=Playing tick=179 level=0 score=160 lives=3` |
+| Sandboxed x86_64 smoke (Rosetta 2) | Same frame summary |
+| Real window | Launched through `open`; captured on the title screen and again after Return started stage 1 ([evidence/macos-appstore-sandboxed-play.png](evidence/macos-appstore-sandboxed-play.png)) |
+
+Gates run in the same session, all passing:
+- `cargo fmt --check`, `cargo check --locked`, and `cargo clippy --locked --all-targets -- -D warnings`.
+- `cargo test --locked --lib --test app_icon --test simulation --test campaign_routes`: library 6, app_icon 2 and simulation 17 cases, plus a successful campaign route runner.
+- `SDL_VIDEO_DRIVER=dummy SDL_AUDIO_DRIVER=dummy cargo test --locked --test cli`: 10 passed.
+
+Files changed: `src/platform.rs` and `src/main.rs` (the preference-path probe in `--smoke`), plus the new `platform/macos-appstore.sh`, `platform/macos/` and `platform/PrivacyInfo.xcprivacy`.
+
+Not done: distribution signing, notarization, upload and App Store review.
+
+### iOS App Store packaging (2026-11-03)
+
+On 2026-11-03 the following ran on **Apple Silicon macOS** with **rustc 1.99.1**, **Xcode 26.2 (17C52)** and the **iOS 26.2 simulator runtime**. The revision was Git `82d4415` plus the uncommitted Platforms changes.
+
+```sh
+bash platform/ios-build.sh simulator
+bash platform/ios-build.sh device
+xcrun simctl install DEVICE target/aarch64-apple-ios-sim/release/bundle/DangerousGabe.app
+xcrun simctl launch --console-pty DEVICE dev.dangerousgabe.game --smoke
+xcrun simctl launch DEVICE dev.dangerousgabe.game                       # title capture
+xcrun simctl launch DEVICE dev.dangerousgabe.game --scene play --level 0 # play capture
+xcrun simctl io DEVICE screenshot FILE.png
+```
+
+| Check | Observed result |
+| --- | --- |
+| Simulator bundle | Ad hoc signed; contains `PrivacyInfo.xcprivacy`, `Assets.car` and the merged icon plist |
+| Device bundle and IPA | Unsigned device app and `DangerousGabe-unsigned.ipa` written |
+| iPhone 17 Pro `--smoke` | Printed `Save directory writable: .../data/Containers/Data/Application/<id>/Library/Application Support/dev.dangerousgabe/Dangerous Gabe/`, then `SDL3 frames=180 mode=Playing tick=179 level=0 score=160 lives=3` |
+| iPad Pro 13-inch (M5) `--smoke` | The same two lines, inside its own container |
+| Screenshots | `simctl` saves in the panel's portrait buffer; the captures were rotated with `sips` to the landscape the game uses (iPhone 2622x1206, iPad 2752x2064) |
+
+Evidence: [iPhone title](evidence/ios-appstore-iphone-title.png), [iPhone play](evidence/ios-appstore-iphone-play.png), [iPad title](evidence/ios-appstore-ipad-title.png) and [iPad play](evidence/ios-appstore-ipad-play.png). The iPad simulator was turned to landscape with Simulator's *Device > Rotate Right*. In portrait the landscape-only game is letterboxed, and iPadOS 26 keeps the status bar visible. The play captures use the documented `--scene play` stage-1 entry, so they show rendering and touch controls, not earned progress.
+
+Gates run in the same session, all passing:
+- `cargo fmt --check`;
+- `npm test`: 80 passed;
+- the phase 1 Rust gates. These were not affected: no Rust source changed in this phase, and the iOS changes are `platform/Info.plist` and `platform/ios-build.sh`.
+
+Not done: no physical device, no distribution signing, no upload.
+
+### App Store assets and iOS fixes (2026-11-03)
+
+On 2026-11-03 the following ran on the same host and toolchain as the packaging records above. The revision was Git `82d4415` plus the uncommitted Platforms changes.
+
+**iPadOS 26 fixes**
+
+| Change | Result |
+| --- | --- |
+| `UIViewControllerBasedStatusBarAppearance` = NO in the plist | Status bar still visible on a fresh install |
+| `src/main.rs`: the iOS window is created borderless, because SDL's UIKit view controller hides the status bar only for borderless or fullscreen windows | Status bar gone (iPad captures) |
+| `src/main.rs`: on iOS the `SDL_IOS_ORIENTATIONS` hint is set to `LandscapeLeft LandscapeRight`, because a resizable SDL window otherwise allows every orientation | iPhone stays in landscape |
+
+Remaining iPad limit: on iPadOS 26 a portrait-held iPad still shows the landscape game letterboxed in a portrait window. This was checked on a fresh install with `UIRequiresFullScreen` = YES and the orientation hint. iPadOS 26 resizable windowing does not force-rotate the app. Held in landscape, the game fills the screen.
+
+**Release tooling:** [`tools/release/version.mjs`](tools/release/version.mjs) now updates `CFBundleShortVersionString` and `CFBundleVersion` in both `platform/Info.plist` and `platform/macos/Info.plist`. The release commit assets in `release.config.mjs` include the Mac plist, and the version, orchestration and publication tests were updated. `npm test`: 80 passed.
+
+**Store screenshots** (listed in [App Store listing draft](#app-store-listing-draft)):
+
+| Platform | How it was captured |
+| --- | --- |
+| Mac | `dangerous-gabe --window 1440x900 --scene SCENE --level N --frames 90 --screenshot FILE.bmp`. On a Retina display this exports the game's 2700x1800 viewport, which was centred on the HUD navy (`#07111F`) to 2880x1800 |
+| iPhone 17 Pro Max (6.9") and iPad Pro 13-inch (M5) | `simctl io screenshot` of the simulator build, rotated from the portrait buffer with `sips`. The iPad was set to landscape with *Device > Rotate Right* |
+
+**New option:** `--window WxH` (Platforms, `src/options.rs`) sets the initial window size, bounded to 320x200 .. 8192x8192.
+
+**Gates, all passing:**
+- `cargo fmt --check` and `cargo clippy --locked --all-targets -- -D warnings`;
+- `cargo clippy --locked --target aarch64-apple-ios-sim -- -D warnings`;
+- `cargo test --locked --lib --test app_icon --test simulation --test campaign_routes`: lib 6, app_icon 2 and simulation 17, plus the route runner;
+- the dummy-driver `cli` suite: 10 passed.
+
+### App Store screenshot alpha fix (2026-11-03)
+
+QA found an alpha channel in the eight iPhone and iPad captures. `simctl io screenshot` writes RGBA in both PNG and BMP form, and App Store Connect rejects images with alpha.
+- **Existing captures:** flattened onto black at unchanged dimensions. The pixels were already opaque, so the image content did not change.
+- **Future captures:** the new [`platform/appstore-screenshot.sh`](platform/appstore-screenshot.sh) flattens every capture through a maximum-quality JPEG round trip with `sips` (no extra tools) and fails unless the result has no alpha and the exact size. Test runs printed `opaque 2880x1800` (Mac, stage 7), `opaque 2752x2064` (iPad Pro 13-inch, stage 8) and `opaque 2868x1320` (iPhone 17 Pro Max, stage 5).
+- **Verification:** `sips -g hasAlpha -g pixelWidth -g pixelHeight evidence/appstore/*.png` reports `hasAlpha: no` for all twelve: Mac 2880x1800 ×4, iPhone 2868x1320 ×4, iPad 2752x2064 ×4.
 
 ### Release tooling validation
 

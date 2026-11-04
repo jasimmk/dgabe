@@ -25,16 +25,19 @@ test('option parsing rejects duplicates, missing arguments and unknown flags', (
 test('version preparation updates only the root package, matching lock entry and Apple strings', async t => {
   const root = await mkdtemp(join(tmpdir(), 'gabe-version-'));
   t.after(() => rm(root, { recursive: true, force: true }));
-  await mkdir(join(root, 'platform'));
+  await mkdir(join(root, 'platform/macos'), { recursive: true });
   const cargo = '[package]\nname = "dangerous-gabe"\nversion = "0.1.0"\nedition = "2024"\n\n[dependencies]\nsdl3 = { version = "=0.20.0" }\n\n[package.metadata.bundle]\nversion = "leave-me"\n';
   const lock = 'version = 4\n\n[[package]]\nname = "before"\nversion = "8.0.0"\n\n[[package]]\nname = "dangerous-gabe"\nversion = "0.1.0"\ndependencies = ["sdl3"]\n\n[[package]]\nname = "sdl3"\nversion = "0.20.0"\nchecksum = "unchanged"\n';
   const plist = '<plist><dict><key>CFBundleShortVersionString</key><string>0.1.0</string><key>CFBundleVersion</key><string>1</string><key>CFBundleIdentifier</key><string>dev.test</string></dict></plist>';
-  await Promise.all([writeFile(join(root, 'Cargo.toml'), cargo), writeFile(join(root, 'Cargo.lock'), lock), writeFile(join(root, 'platform/Info.plist'), plist)]);
+  await Promise.all([writeFile(join(root, 'Cargo.toml'), cargo), writeFile(join(root, 'Cargo.lock'), lock), writeFile(join(root, 'platform/Info.plist'), plist),
+    writeFile(join(root, 'platform/macos/Info.plist'), plist.replace('dev.test', 'dev.test.mac'))]);
   const result = await syncVersion(root, '1.4.2', '37');
-  assert.equal(result.files.length, 3);
+  assert.equal(result.files.length, 4);
   assert.equal(await readFile(join(root, 'Cargo.toml'), 'utf8'), cargo.replace('version = "0.1.0"', 'version = "1.4.2"'));
   assert.equal(await readFile(join(root, 'Cargo.lock'), 'utf8'), lock.replace('version = "0.1.0"', 'version = "1.4.2"'));
-  assert.equal(await readFile(join(root, 'platform/Info.plist'), 'utf8'), plist.replace('<string>0.1.0</string>', '<string>1.4.2</string>').replace('<string>1</string>', '<string>37</string>'));
+  const updated = plist.replace('<string>0.1.0</string>', '<string>1.4.2</string>').replace('<string>1</string>', '<string>37</string>');
+  assert.equal(await readFile(join(root, 'platform/Info.plist'), 'utf8'), updated);
+  assert.equal(await readFile(join(root, 'platform/macos/Info.plist'), 'utf8'), updated.replace('dev.test', 'dev.test.mac'));
 });
 
 test('invalid preparation and module imports do not mutate fixture metadata', async t => {

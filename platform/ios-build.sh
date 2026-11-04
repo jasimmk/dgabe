@@ -24,6 +24,8 @@ fi
 cp "$gabe_target_dir/$gabe_target/release/dangerous-gabe" "$gabe_app/$gabe_executable"
 chmod 755 "$gabe_app/$gabe_executable"
 cp "$gabe_root/platform/Info.plist" "$gabe_app/Info.plist"
+cp "$gabe_root/platform/PrivacyInfo.xcprivacy" "$gabe_app/PrivacyInfo.xcprivacy"
+plutil -lint "$gabe_app/PrivacyInfo.xcprivacy"
 gabe_partial="$(mktemp -t gabe-icon-info)"
 trap 'rm -f "$gabe_partial"' EXIT
 xcrun --sdk "$gabe_sdk" actool "$gabe_root/assets/icons/Assets.xcassets" \
@@ -83,6 +85,23 @@ elif [ -n "${GABE_PROFILE:-}" ]; then
            echo "Install the profile's Apple Development certificate and private key, then set GABE_SIGN_IDENTITY to its SHA-1." >&2
            exit 1 ;;
     esac
+    # App Store upload shape: a distribution-signed app zipped as Payload/.
+    # Set GABE_SIGN_IDENTITY to an "Apple Distribution" identity and
+    # GABE_PROFILE to an App Store profile; upload is a separate, manual step.
+    if [ "${GABE_APPSTORE_IPA:-0}" = 1 ]; then
+        if /usr/libexec/PlistBuddy -c 'Print :Entitlements:get-task-allow' "$gabe_profile_plist" 2>/dev/null | grep -q true; then
+            echo "GABE_APPSTORE_IPA needs an App Store distribution profile (this one allows get-task-allow)." >&2
+            exit 1
+        fi
+        gabe_store_ipa="$(dirname "$gabe_app")/DangerousGabe-appstore.ipa"
+        gabe_payload="$(mktemp -d -t gabe-store-ipa)"
+        mkdir "$gabe_payload/Payload"
+        ditto "$gabe_app" "$gabe_payload/Payload/$(basename "$gabe_app")"
+        rm -f "$gabe_store_ipa"
+        (cd "$gabe_payload" && ditto -c -k --norsrc --keepParent Payload "$gabe_store_ipa")
+        rm -rf "$gabe_payload"
+        echo "App Store IPA: $gabe_store_ipa"
+    fi
     echo "Signed device app: $gabe_app"
     echo "Install: xcrun devicectl device install app --device <device-id> '$gabe_app'"
     echo "Launch: xcrun devicectl device process launch --device <device-id> $gabe_bundle_id"

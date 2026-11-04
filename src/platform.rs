@@ -187,3 +187,33 @@ fn logical_point(point: (f32, f32), size: (f32, f32)) -> (f32, f32) {
 
 #[cfg(test)]
 mod tests;
+
+/// Organization and application names for SDL's per-user preference path.
+/// Inside the macOS App Sandbox this resolves to the app's container
+/// (`~/Library/Containers/<bundle id>/Data/Library/Application Support/...`).
+pub const PREF_ORG: &str = "dev.dangerousgabe";
+pub const PREF_APP: &str = "Dangerous Gabe";
+
+/// The writable per-user data directory (created by SDL if missing).
+pub fn data_dir() -> Result<std::path::PathBuf, String> {
+    sdl3::filesystem::get_pref_path(PREF_ORG, PREF_APP).map_err(|error| error.to_string())
+}
+
+/// Write, read back and remove a probe file in `dir`, proving that saving
+/// works there (used by `--smoke`, notably under the App Sandbox).
+pub fn probe_data_dir(dir: &std::path::Path) -> Result<(), String> {
+    let probe = dir.join(".write-probe");
+    let payload = b"dangerous-gabe";
+    std::fs::write(&probe, payload)
+        .map_err(|error| format!("write {}: {error}", probe.display()))?;
+    let read =
+        std::fs::read(&probe).map_err(|error| format!("read {}: {error}", probe.display()))?;
+    std::fs::remove_file(&probe).map_err(|error| format!("remove {}: {error}", probe.display()))?;
+    if read != payload {
+        return Err(format!(
+            "probe {} read back different bytes",
+            probe.display()
+        ));
+    }
+    Ok(())
+}
