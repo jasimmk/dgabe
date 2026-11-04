@@ -7,3 +7,5 @@
 /dist/
 /release-plan.json
 /.profiles/
+# Local build logs
+*.log
