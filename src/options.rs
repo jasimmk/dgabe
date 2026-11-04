@@ -9,6 +9,10 @@ pub(crate) struct Options {
     pub(crate) level: usize,
     /// initial window size in points (default 960x640)
     pub(crate) window: (u32, u32),
+    /// write every second frame as DIR/frame_NNNNN.bmp (fixed 60 Hz steps)
+    pub(crate) record: Option<String>,
+    /// scripted demo input (used for App Store preview capture)
+    pub(crate) autoplay: bool,
 }
 
 impl Options {
@@ -21,12 +25,18 @@ impl Options {
             touch: cfg!(target_os = "ios"),
             level: 0,
             window: (960, 640),
+            record: None,
+            autoplay: false,
         };
         let mut args = std::env::args().skip(1);
         while let Some(arg) = args.next() {
             match arg.as_str() {
                 "--smoke" => options.smoke = true,
                 "--touch" => options.touch = true,
+                "--autoplay" => options.autoplay = true,
+                "--record" => {
+                    options.record = Some(args.next().ok_or("--record needs a directory")?)
+                }
                 "--frames" => {
                     options.frames = Some(
                         args.next()
@@ -68,7 +78,7 @@ impl Options {
                 }
                 _ => {
                     return Err(format!(
-                        "Unknown argument {arg}; use --smoke, --frames N, --scene NAME, --level N, --touch, --window WxH, --screenshot PATH.bmp"
+                        "Unknown argument {arg}; use --smoke, --frames N, --scene NAME, --level N, --touch, --window WxH, --screenshot PATH.bmp, --record DIR, --autoplay"
                     ));
                 }
             }

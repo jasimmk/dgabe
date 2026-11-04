@@ -739,7 +739,7 @@ Implemented interface copy includes DANGEROUS GABE / THE STORM GARDEN, ENTER THE
 
 ## App Store listing draft
 
-This is a **draft** for App Store Connect, entered by the maintainer. Nothing has been uploaded or submitted. Rows marked **TODO (maintainer)** need the maintainer's own details before submission.
+The iOS 1.2.0 (build 8) version was submitted to App Review on 2026-11-04 and is **Waiting for Review**. The listing fields below reflect the submitted iOS metadata; platform listings and review states can differ. The separate macOS 1.2.0 version is also Waiting for Review. See the dated submission record in the [validation appendix](#ios-app-review-submission-2026-11-04).
 
 | Field | Draft |
 | --- | --- |
@@ -754,8 +754,8 @@ This is a **draft** for App Store Connect, entered by the maintainer. Nothing ha
 | Privacy policy URL | `https://jasimmk.github.io/dgabe/privacy.html`, generated from [docs/html/privacy.template.html](docs/html/privacy.template.html) |
 | Copyright | `2026 Jasim Muhammed` (confirmed by maintainer, 2026-11-04) |
 
-**Two things to check before submission:**
-- **The privacy page is not live yet.** `docs/privacy.html` reaches `https://jasimmk.github.io/dgabe/privacy.html` only after the maintainer commits and pushes `docs/`. Until then the URL returns 404, and App Review rejects a broken privacy policy link.
+**Review follow-up:**
+- **Privacy policy URL:** `https://jasimmk.github.io/dgabe/privacy.html` was opened successfully on 2026-11-04 and displayed the published policy.
 - **Name review risk (QA note, kept by decision).** "Dangerous Gabe" echoes the title of the 1990 game *Dangerous Dave*. The maintainer kept the name on 2026-11-03. App Review or a rights holder could still question the similarity. The game's code, art, stages and story are original ([Original content](#original-content-and-a-useful-handoff)), and the name is not presented as affiliated with that game.
 
 **Promotional text (170 max):** Twelve storm-wrecked gardens. One gardener with a pulse tool and a little lift. Find each sunseed, carry it to the arch and wake the garden.
@@ -812,7 +812,7 @@ Yes/No questions, all answered **No**:
 
 #### Privacy policy text
 
-Published as [docs/privacy.html](docs/privacy.html), styled like the field guide and linked from its footer, once `docs/` is pushed:
+Published as [docs/privacy.html](docs/privacy.html), served at `https://jasimmk.github.io/dgabe/privacy.html`, styled like the field guide and linked from its footer. The live page was opened and checked on 2026-11-04:
 
 > **Dangerous Gabe privacy policy**
 >
@@ -840,8 +840,11 @@ The `sim` mode expects the simulator build to be installed. For the iPad, turn t
 | Platform | Size | Files |
 | --- | --- | --- |
 | Mac | 2880x1800 | `mac-1-title-stage01`, `mac-2-play-stage03`, `mac-3-play-stage07`, `mac-4-play-stage11` |
+| iPhone 6.3" | 2622x1206 (landscape) | `iphone63-1-title-stage01`, `iphone63-2-play-stage02`, `iphone63-3-play-stage05`, `iphone63-4-play-stage09` |
 | iPhone 6.9" | 2868x1320 (landscape) | `iphone69-1-title-stage01`, `iphone69-2-play-stage02`, `iphone69-3-play-stage05`, `iphone69-4-play-stage09` |
 | iPad 13" | 2752x2064 (landscape) | `ipad13-1-title-stage01`, `ipad13-2-play-stage04`, `ipad13-3-play-stage08`, `ipad13-4-play-stage12` |
+
+**Mac app preview:** `bash platform/appstore-preview.sh` (also available through `make-preview.command`) builds the release binary and records a title sequence plus scripted play on stages 1, 3, 7 and 11. It writes the captured PNG frames to `evidence/appstore/preview/preview-frames.tar`. The encoded 1920x1080 preview is `evidence/appstore/preview/mac-preview-1920x1080.mp4`. The CLI's `--record DIR` writes every other fixed 60 Hz frame, and `--autoplay` supplies the preview input sequence.
 
 **Note on the stage captures:** they show each stage's entrance, opened with `--scene play --level N`. They are real renders, not earned progress, and the entrances look alike. Mid-stage captures would market the variety better.
 
@@ -862,7 +865,8 @@ Status recorded **2026-10-17**. The twelve-stage expansion, tighter opposition a
 | Windows and Linux build/run | Pending | Native scripts and CI supplied; no recorded destination build/run |
 | Cross-platform CI configuration | Complete; local native equivalents passed | Native format/Clippy/build/test matrix, Linux CLI tests and Apple compilation jobs; Windows/Linux and remote execution remain unverified |
 | All-platform release automation | Implemented; hosted release run pending | Semantic-release plan/build/validate/publish, six mandatory archives and optional provisioned IPA; actual release publication/Apple credential paths unverified |
-| Store distribution and notarization | Pending | Developer ID/notarization, App Store assets/submission and physical-device execution |
+| iOS App Store review | Submitted; waiting for review | Version 1.2.0 build 8 was submitted on 2026-11-04; see the [submission record](#ios-app-review-submission-2026-11-04) |
+| macOS App Store review and notarization | Waiting for review; notarization pending | macOS version 1.2.0 is waiting for review; Developer ID/notarization and physical-device execution remain pending |
 
 Future work includes persistence, configurable bindings, controller support, more stages, accessibility options and expanded audio. These are planned possibilities, not shipped features.
 
@@ -1029,7 +1033,13 @@ GABE_MAC_BUNDLE_ID=dev.dangerousgabe.game.<TEAM> GABE_MAC_APP_IDENTITY=<Apple Di
 
 **Upload fixes (builds 7 and 8, 2026-11-04):** Transporter uploads of build 6 failed processing. macOS (91109): `embedded.provisionprofile` carried `com.apple.quarantine`, so `macos-appstore.sh` now runs `xattr -cr` on the app before signing. iOS (90507, 90534): the plist lacked Xcode's `DT*` build-environment keys, so both scripts now add `DTPlatformName`, `DTSDKName`, `DTXcode` and related keys from the active Xcode. iOS build 7 then failed for missing purpose strings (`NSCameraUsageDescription`, `NSBluetoothAlwaysUsageDescription`) referenced by SDL; `platform/Info.plist` now declares camera, microphone and Bluetooth strings stating the game does not use them (Bluetooth: wireless controllers only). Accepted builds: macOS 1.2.0 (7) and iOS 1.2.0 (8). `rebuild-appstore.command` and `rebuild-ios.command` rebuild them from Finder.
 
-**Not done:** App Review submission.
+### iOS App Review submission (2026-11-04)
+
+App Store Connect accepted **Dangerous Gabe for iOS 1.2.0 (build 8)** for App Review on 2026-11-04. The version status changed from Prepare for Submission to **Waiting for Review**; App Store Connect displayed "1 Item Submitted". The macOS 1.2.0 version was already Waiting for Review and was not changed in this submission.
+
+Before submission, App Store Connect reported that the Search Results asset was already included in another submission. The `search-1920x1280.png` asset was removed from the iOS product page and its draft review queue; it remains in the Asset Library. The iOS header creative and device screenshots remained attached. The final review queue contained the iOS version and its app icon, and App Store Connect confirmed the version submission.
+
+This records submission to Apple, not approval or public availability. The public privacy-policy URL was opened successfully on 2026-11-04; App Review can still request changes or reject the submission for other reasons.
 
 ### Release tooling validation
 
